@@ -25,7 +25,7 @@ jobs:
 
       # Report everything (dependencies + IaC/config + secrets) to the Security tab.
       - name: Trivy scan (SARIF report)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scanners: vuln,secret,config
@@ -43,7 +43,7 @@ jobs:
 
       # Gate: fail on fixable CRITICAL/HIGH vulnerabilities.
       - name: Trivy gate (fail on fixable CRITICAL/HIGH)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scanners: vuln
