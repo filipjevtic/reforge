@@ -53,16 +53,26 @@ def run_dataset(
 
     def _run(item: tuple[TaskSpec, int]) -> TaskResult:
         spec, attempt = item
-        return run_task(
-            spec,
-            ctx,
-            runtime,
-            network_override=network_override,
-            no_cache=no_cache,
-            adapter_config=adapter_config,
-            judge_limiter=judge_limiter,
-            attempt=attempt,
-        )
+        try:
+            return run_task(
+                spec,
+                ctx,
+                runtime,
+                network_override=network_override,
+                no_cache=no_cache,
+                adapter_config=adapter_config,
+                judge_limiter=judge_limiter,
+                attempt=attempt,
+            )
+        except Exception as exc:  # run_task shouldn't raise, but never let it abort the run
+            log.error("task_crashed", task=spec.id, error=str(exc))
+            return TaskResult(
+                task_id=spec.id,
+                category=spec.category.value,
+                adapter=ctx.adapter,
+                model=ctx.model,
+                error=f"unexpected: {exc}",
+            )
 
     spent = 0.0
     exhausted = False

@@ -16,11 +16,54 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeVar
 
 from reforge.utils.errors import AdapterError
+
+T = TypeVar("T")
+
+_RETRYABLE_HINTS = (
+    "rate limit",
+    "429",
+    "timeout",
+    "temporarily",
+    "overloaded",
+    "connection",
+    "500",
+    "502",
+    "503",
+    "504",
+)
+
+
+def _is_retryable(exc: Exception) -> bool:
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int) and (status == 429 or 500 <= status < 600):
+        return True
+    msg = str(exc).lower()
+    return any(hint in msg for hint in _RETRYABLE_HINTS)
+
+
+def call_with_retries(
+    func: Callable[[], T],
+    *,
+    retries: int = 3,
+    base_delay: float = 1.0,
+    sleep: Callable[[float], None] = time.sleep,
+) -> T:
+    """Call ``func``, retrying transient provider errors with exponential backoff."""
+    for attempt in range(retries + 1):
+        try:
+            return func()
+        except Exception as exc:
+            if attempt >= retries or not _is_retryable(exc):
+                raise
+            sleep(base_delay * (2**attempt))
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 @dataclass
@@ -102,7 +145,7 @@ class AnthropicClient(LLMClient):
                 {"name": t.name, "description": t.description, "input_schema": t.parameters}
                 for t in tools
             ]
-        resp = self._client.messages.create(**kwargs)
+        resp = call_with_retries(lambda: self._client.messages.create(**kwargs))
 
         text_parts: list[str] = []
         tool_calls: list[ToolCall] = []
@@ -164,7 +207,7 @@ class OpenAIClient(LLMClient):
                 }
                 for t in tools
             ]
-        resp = self._client.chat.completions.create(**kwargs)
+        resp = call_with_retries(lambda: self._client.chat.completions.create(**kwargs))
         choice = resp.choices[0]
         tool_calls = [
             ToolCall(

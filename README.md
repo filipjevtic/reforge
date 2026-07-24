@@ -171,6 +171,21 @@ no network by default, dropped capabilities, and CPU, memory, and PID limits. Ev
 so, treat agent output as untrusted and run reforge on a disposable or isolated
 host. It never mounts your Docker socket into a task container.
 
+## Known limitations
+
+This is alpha software. Worth knowing before you rely on it:
+
+- Reported costs are estimates from a small built-in pricing table that can go
+  stale. Verify against current provider pricing for anything that matters.
+- Model versions aren't pinnable the way source commits are. reforge records the
+  model id in each result, but providers can change a model behind that id.
+- The LLM judge is run at temperature 0 and can be sampled with a median, but it
+  is not perfectly reproducible. For a fully deterministic run, use `--no-judge`.
+- `api-agent` is a deliberately minimal scaffold, not a state-of-the-art agent.
+  It exists so any model works out of the box on the same footing; for a specific
+  agent, write an adapter.
+- Supported on Linux and macOS with Docker (or Podman). Windows is untested.
+
 ## Status
 
 Early and moving fast. The task format and adapter contract are stabilizing; see

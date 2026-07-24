@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from reforge.llm.client import ToolCall, _to_anthropic_messages, _to_openai_messages
+import pytest
+
+from reforge.llm.client import (
+    ToolCall,
+    _is_retryable,
+    _to_anthropic_messages,
+    _to_openai_messages,
+    call_with_retries,
+)
 from reforge.llm.cost import compute_cost, price_for
 
 
@@ -31,6 +39,58 @@ def test_anthropic_tool_result_shape() -> None:
     assert out[1]["content"][1]["type"] == "tool_use"
     assert out[2]["content"][0]["type"] == "tool_result"
     assert out[2]["content"][0]["tool_use_id"] == "t1"
+
+
+class _Status(Exception):
+    def __init__(self, status_code: int) -> None:
+        super().__init__(f"http {status_code}")
+        self.status_code = status_code
+
+
+def test_is_retryable() -> None:
+    assert _is_retryable(_Status(429)) is True
+    assert _is_retryable(_Status(503)) is True
+    assert _is_retryable(_Status(400)) is False
+    assert _is_retryable(Exception("connection reset")) is True
+    assert _is_retryable(Exception("invalid api key")) is False
+
+
+def test_retries_then_succeeds() -> None:
+    calls = {"n": 0}
+    slept: list[float] = []
+
+    def flaky() -> str:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise _Status(429)
+        return "ok"
+
+    result = call_with_retries(flaky, retries=3, base_delay=0.01, sleep=slept.append)
+    assert result == "ok"
+    assert calls["n"] == 3
+    assert len(slept) == 2  # slept before each of the two retries
+
+
+def test_non_retryable_raises_immediately() -> None:
+    calls = {"n": 0}
+
+    def bad() -> str:
+        calls["n"] += 1
+        raise _Status(400)
+
+    with pytest.raises(_Status):
+        call_with_retries(bad, retries=3, base_delay=0.01, sleep=lambda _: None)
+    assert calls["n"] == 1
+
+
+def test_retries_exhausted_reraises() -> None:
+    with pytest.raises(_Status):
+        call_with_retries(
+            lambda: (_ for _ in ()).throw(_Status(503)),
+            retries=2,
+            base_delay=0.01,
+            sleep=lambda _: None,
+        )
 
 
 def test_openai_tool_call_shape() -> None:
