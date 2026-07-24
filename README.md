@@ -99,6 +99,23 @@ Two more controls matter when the models cost money and sometimes flake:
 - `--max-cost-usd N` stops launching tasks once the run's spend reaches your
   budget, so a large dataset against a frontier model can't run away with the bill.
 
+## Datasets and runtimes
+
+`--dataset` takes a local directory or a HuggingFace dataset repo of reforge task
+directories:
+
+```bash
+reforge run --dataset hf:acme/reforge-tasks --adapter gold        # or hf:acme/tasks@v1
+```
+
+That pulls the repo with `huggingface_hub` (install `reforge[hf]`) and runs it like
+any local dataset. Row-based HF datasets aren't supported; the convention is a
+git-backed dataset repo whose files are task directories.
+
+reforge runs on Docker by default and on Podman with `--runtime podman`. Podman
+exposes a Docker-compatible API socket, so this is the same tested code path
+pointed at Podman's socket; set `DOCKER_HOST` to override where it looks.
+
 ## Writing a task
 
 A task directory looks like this:

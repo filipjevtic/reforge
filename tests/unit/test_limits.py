@@ -19,3 +19,16 @@ def test_docker_kwargs_hardening() -> None:
     assert kwargs["network_mode"] == "none"
     assert kwargs["cap_drop"] == ["ALL"]
     assert "no-new-privileges" in kwargs["security_opt"]
+    assert "storage_opt" not in kwargs  # none by default
+
+
+def test_disk_quota_kwargs() -> None:
+    limits = ResourceLimits(disk_quota="5g")
+    assert limits.to_docker_kwargs()["storage_opt"] == {"size": "5g"}
+    # Can be omitted for the graceful-degradation retry.
+    assert "storage_opt" not in limits.to_docker_kwargs(with_disk_quota=False)
+
+
+def test_from_spec_carries_disk_quota() -> None:
+    limits = ResourceLimits.from_spec(Resources(disk_quota="10g"))
+    assert limits.disk_quota == "10g"

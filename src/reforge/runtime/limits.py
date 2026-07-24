@@ -20,6 +20,7 @@ class ResourceLimits:
     memory: str = "4g"
     pids: int = 512
     network: str = "none"
+    disk_quota: str | None = None
 
     @classmethod
     def from_spec(cls, resources: Resources, network_override: str | None = None) -> ResourceLimits:
@@ -28,12 +29,13 @@ class ResourceLimits:
             memory=resources.memory,
             pids=resources.pids,
             network=network_override or resources.network.value,
+            disk_quota=resources.disk_quota,
         )
 
-    def to_docker_kwargs(self) -> dict[str, object]:
+    def to_docker_kwargs(self, *, with_disk_quota: bool = True) -> dict[str, object]:
         """Map limits onto docker-py ``containers.run``/``create`` keyword args."""
         # nano_cpus is CPU count expressed in billionths of a CPU.
-        return {
+        kwargs: dict[str, object] = {
             "nano_cpus": int(self.cpus * 1_000_000_000),
             "mem_limit": self.memory,
             "pids_limit": self.pids,
@@ -42,3 +44,9 @@ class ResourceLimits:
             "cap_drop": ["ALL"],
             "security_opt": ["no-new-privileges"],
         }
+        # storage_opt size requires a quota-capable storage driver (overlay2 on
+        # xfs with pquota, or btrfs). It is best-effort; the runtime retries
+        # without it if the driver rejects it.
+        if with_disk_quota and self.disk_quota:
+            kwargs["storage_opt"] = {"size": self.disk_quota}
+        return kwargs
