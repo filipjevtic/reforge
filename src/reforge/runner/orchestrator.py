@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from reforge import __version__
-from reforge.report.aggregate import build_leaderboard
+from reforge.report.aggregate import build_leaderboard, build_task_stats
 from reforge.report.models import RunReport, TaskResult
 from reforge.runner.run_context import RunContext
 from reforge.runner.task_runner import run_task
@@ -34,18 +34,25 @@ def run_dataset(
     no_cache: bool = False,
     adapter_config: dict[str, object] | None = None,
     progress: bool = False,
+    repeats: int = 1,
+    max_cost_usd: float | None = None,
 ) -> RunReport:
     _write_run_json(ctx, dataset_name, specs)
 
     results: list[TaskResult] = []
     concurrency = max(1, concurrency)
+    repeats = max(1, repeats)
 
     # One shared limiter so judge calls across parallel tasks don't burst.
     from reforge.llm.ratelimit import RateLimiter
 
     judge_limiter = RateLimiter(calls_per_minute=60.0)
 
-    def _run(spec: TaskSpec) -> TaskResult:
+    # (spec, attempt) is the unit of work; repeats add attempts per task.
+    work = [(spec, attempt) for attempt in range(repeats) for spec in specs]
+
+    def _run(item: tuple[TaskSpec, int]) -> TaskResult:
+        spec, attempt = item
         return run_task(
             spec,
             ctx,
@@ -54,20 +61,41 @@ def run_dataset(
             no_cache=no_cache,
             adapter_config=adapter_config,
             judge_limiter=judge_limiter,
+            attempt=attempt,
         )
 
-    tracker = _Progress(len(specs), enabled=progress)
+    spent = 0.0
+    exhausted = False
+
+    def _over_budget() -> bool:
+        return max_cost_usd is not None and spent >= max_cost_usd
+
+    tracker = _Progress(len(work), enabled=progress)
     with tracker:
         if concurrency == 1:
-            for spec in specs:
-                results.append(_run(spec))
-                tracker.advance(results[-1])
+            for item in work:
+                if _over_budget():
+                    exhausted = True
+                    break
+                result = _run(item)
+                results.append(result)
+                spent += result.cost_usd or 0.0
+                tracker.advance(result)
         else:
             with ThreadPoolExecutor(max_workers=concurrency) as pool:
-                futures = {pool.submit(_run, spec): spec for spec in specs}
+                futures = {pool.submit(_run, item): item for item in work}
                 for future in as_completed(futures):
-                    results.append(future.result())
-                    tracker.advance(results[-1])
+                    result = future.result()
+                    results.append(result)
+                    spent += result.cost_usd or 0.0
+                    tracker.advance(result)
+                    if _over_budget():
+                        exhausted = True
+                        for pending in futures:
+                            pending.cancel()
+
+    if exhausted:
+        log.warning("budget_exhausted", spent=round(spent, 4), budget=max_cost_usd)
 
     results.sort(key=lambda r: r.task_id)
     report = RunReport(
@@ -76,11 +104,16 @@ def run_dataset(
         dataset=dataset_name,
         adapter=ctx.adapter,
         model=ctx.model,
+        repeats=repeats,
+        budget_usd=max_cost_usd,
+        total_cost_usd=round(spent, 4),
+        budget_exhausted=exhausted,
         results=results,
         leaderboard=build_leaderboard(results),
+        task_stats=build_task_stats(results),
     )
     ctx.report_json.write_text(report.model_dump_json(indent=2), encoding="utf-8")
-    log.info("run_complete", run_id=ctx.run_id, tasks=len(results))
+    log.info("run_complete", run_id=ctx.run_id, results=len(results), cost=round(spent, 4))
     return report
 
 

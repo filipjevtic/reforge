@@ -2,7 +2,33 @@
 
 from __future__ import annotations
 
-from reforge.report.models import LeaderboardRow, TaskResult
+import statistics
+
+from reforge.report.models import LeaderboardRow, TaskResult, TaskStat
+
+
+def build_task_stats(results: list[TaskResult]) -> list[TaskStat]:
+    """Aggregate results by task id, capturing score variance across repeats."""
+    groups: dict[str, list[TaskResult]] = {}
+    for r in results:
+        groups.setdefault(r.task_id, []).append(r)
+
+    stats: list[TaskStat] = []
+    for task_id, rs in sorted(groups.items()):
+        scores = [r.final_score for r in rs]
+        resolved = sum(1 for r in rs if r.resolved)
+        stats.append(
+            TaskStat(
+                task_id=task_id,
+                category=rs[0].category,
+                runs=len(rs),
+                resolved=resolved,
+                resolved_rate=round(resolved / len(rs), 4),
+                mean_final_score=round(statistics.fmean(scores), 4),
+                stdev_final_score=round(statistics.pstdev(scores), 4) if len(scores) > 1 else 0.0,
+            )
+        )
+    return stats
 
 
 def build_leaderboard(results: list[TaskResult]) -> list[LeaderboardRow]:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from reforge.report.aggregate import build_leaderboard
+from reforge.report.aggregate import build_leaderboard, build_task_stats
 from reforge.report.models import SubScore, TaskResult
 
 
@@ -51,3 +51,25 @@ def test_leaderboard_splits_by_adapter_model() -> None:
     )
     board = build_leaderboard(results)
     assert len(board) == 2
+
+
+def test_task_stats_variance() -> None:
+    # Same task run three times with differing scores -> non-zero stdev.
+    results = [
+        _result("a", "new_feature", True, 1.0),
+        _result("a", "new_feature", False, 0.0),
+        _result("a", "new_feature", True, 1.0),
+    ]
+    stats = build_task_stats(results)
+    assert len(stats) == 1
+    s = stats[0]
+    assert s.runs == 3
+    assert s.resolved == 2
+    assert s.resolved_rate == round(2 / 3, 4)
+    assert s.mean_final_score == round(2 / 3, 4)
+    assert s.stdev_final_score > 0.0
+
+
+def test_task_stats_single_run_zero_variance() -> None:
+    stats = build_task_stats([_result("a", "new_feature", True, 1.0)])
+    assert stats[0].stdev_final_score == 0.0

@@ -79,6 +79,26 @@ Results land in `runs/<run-id>/`: a `report.json`, and per task the captured
 diff, the verifier log, and a `result.json` with the full score breakdown and
 provenance.
 
+## Comparing agents and models
+
+The whole point is to compare. Run each candidate, then put them on one board:
+
+```bash
+reforge run --dataset ./tasks --adapter api-agent --model claude-sonnet-4-6 --run-id claude
+reforge run --dataset ./tasks --adapter api-agent --model gpt-4.1 --run-id gpt
+reforge report runs/claude --compare runs/gpt
+```
+
+The comparison groups by adapter and model and shows resolved rate, mean score,
+dependency coverage, and total cost side by side.
+
+Two more controls matter when the models cost money and sometimes flake:
+
+- `--repeats N` runs each task N times and reports the score variance, so a lucky
+  pass doesn't look like a reliable one.
+- `--max-cost-usd N` stops launching tasks once the run's spend reaches your
+  budget, so a large dataset against a frontier model can't run away with the bill.
+
 ## Writing a task
 
 A task directory looks like this:
