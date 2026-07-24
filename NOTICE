@@ -1,0 +1,14 @@
+reforge
+Copyright 2026 reforge contributors
+
+This product includes software developed by the reforge contributors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+The design of reforge draws on ideas from prior open-source coding-agent
+benchmarks, notably SWE-bench (MIT) and Terminal-bench (Apache-2.0). No source
+code from those projects is included here.

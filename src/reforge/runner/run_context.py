@@ -1,0 +1,52 @@
+"""Run directory layout and per-run context."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass
+class RunContext:
+    """Identifiers and paths shared across every task in a run."""
+
+    run_id: str
+    run_dir: Path
+    adapter: str
+    model: str | None
+    no_judge: bool = False
+    judge_model: str | None = None
+
+    def task_dir(self, task_id: str) -> Path:
+        path = self.run_dir / "tasks" / task_id
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def run_json(self) -> Path:
+        return self.run_dir / "run.json"
+
+    @property
+    def report_json(self) -> Path:
+        return self.run_dir / "report.json"
+
+
+def make_run_context(
+    *,
+    run_id: str,
+    output_root: Path,
+    adapter: str,
+    model: str | None,
+    no_judge: bool = False,
+    judge_model: str | None = None,
+) -> RunContext:
+    run_dir = output_root / run_id
+    (run_dir / "tasks").mkdir(parents=True, exist_ok=True)
+    return RunContext(
+        run_id=run_id,
+        run_dir=run_dir,
+        adapter=adapter,
+        model=model,
+        no_judge=no_judge,
+        judge_model=judge_model,
+    )

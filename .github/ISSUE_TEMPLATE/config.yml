@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/filipjevtic/reforge/discussions
+    about: Use GitHub Discussions for questions and general help.
+  - name: Security issue
+    url: https://github.com/filipjevtic/reforge/security/policy
+    about: Report security vulnerabilities privately.

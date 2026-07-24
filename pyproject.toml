@@ -1,0 +1,102 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reforge-bench"
+version = "0.1.0"
+description = "Benchmark how well AI coding agents replicate and extend your own codebase."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "reforge contributors" }]
+keywords = ["benchmark", "llm", "coding-agent", "evaluation", "swe-bench", "ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+]
+
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "typer>=0.12",
+    "rich>=13.7",
+    "docker>=7.1",
+    "pyyaml>=6.0",
+    "structlog>=24.1",
+]
+
+[project.optional-dependencies]
+# LLM providers for the judge and API-backed reference adapters.
+judge = ["anthropic>=0.40", "openai>=1.40"]
+# HuggingFace dataset loading.
+hf = ["datasets>=2.20"]
+dev = [
+    "pytest>=8.2",
+    "pytest-mock>=3.14",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "types-PyYAML>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/filipjevtic/reforge"
+Repository = "https://github.com/filipjevtic/reforge"
+Issues = "https://github.com/filipjevtic/reforge/issues"
+
+[project.scripts]
+reforge = "reforge.cli:app"
+
+# Built-in agent adapters are registered through the same entry-point group that
+# third-party adapters use, so `pip install reforge-adapter-foo` just works.
+[project.entry-points."reforge.adapters"]
+noop = "reforge.adapters.noop:NoopAdapter"
+gold = "reforge.adapters.gold:GoldAdapter"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/reforge"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+extend-exclude = ["tests/fixtures"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+# N818: exception names need not end in "Error".
+# B008: Typer relies on function calls (Option/Argument) in argument defaults.
+ignore = ["N818", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["reforge"]
+strict = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["docker.*", "datasets.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit", "tests/integration"]
+# Our domain has classes named Test* (TestScorer, TestStatus); don't let pytest
+# try to collect them as test classes. All our tests are plain functions.
+python_classes = ["*Tests"]
+markers = [
+    "docker: integration tests that require a running Docker daemon",
+]
+addopts = "-ra"
