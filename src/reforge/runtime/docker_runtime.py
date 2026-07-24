@@ -33,6 +33,22 @@ log = get_logger("runtime.docker")
 _MAX_CAPTURE_BYTES = 8 * 1024 * 1024
 
 
+def _root_owned(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo:
+    """Force copied files to be root-owned in the container.
+
+    Host checkouts (e.g. on CI runners) can be owned by a non-root uid. Preserving
+    that ownership leaves the workspace unwritable by the container process, so the
+    agent and gold patches fail with confusing ENOENT/EACCES errors. Docker Desktop
+    hides this by remapping ownership; CI does not. Normalizing to root matches the
+    intent: the workspace belongs to whoever runs inside the container.
+    """
+    tarinfo.uid = 0
+    tarinfo.gid = 0
+    tarinfo.uname = "root"
+    tarinfo.gname = "root"
+    return tarinfo
+
+
 class DockerContainerHandle(ContainerHandle):
     def __init__(self, client: DockerClient, container: Container) -> None:
         self._client = client
@@ -104,9 +120,9 @@ class DockerContainerHandle(ContainerHandle):
                 # (Walking rglob + add would double-add nested files and emit
                 # duplicate directory entries, which some Docker backends mishandle.)
                 for child in sorted(src.iterdir()):
-                    tar.add(child, arcname=child.name)
+                    tar.add(child, arcname=child.name, filter=_root_owned)
             else:
-                tar.add(src, arcname=src.name)
+                tar.add(src, arcname=src.name, filter=_root_owned)
         buffer.seek(0)
 
         try:
