@@ -9,6 +9,7 @@ parallel tasks never build the same image twice.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any
 
 from reforge import __version__
 from reforge.report.aggregate import build_leaderboard
@@ -31,32 +32,36 @@ def run_dataset(
     concurrency: int = 1,
     network_override: str | None = None,
     no_cache: bool = False,
+    adapter_config: dict[str, object] | None = None,
+    progress: bool = False,
 ) -> RunReport:
     _write_run_json(ctx, dataset_name, specs)
 
     results: list[TaskResult] = []
     concurrency = max(1, concurrency)
 
-    if concurrency == 1:
-        for spec in specs:
-            results.append(
-                run_task(spec, ctx, runtime, network_override=network_override, no_cache=no_cache)
-            )
-    else:
-        with ThreadPoolExecutor(max_workers=concurrency) as pool:
-            futures = {
-                pool.submit(
-                    run_task,
-                    spec,
-                    ctx,
-                    runtime,
-                    network_override=network_override,
-                    no_cache=no_cache,
-                ): spec
-                for spec in specs
-            }
-            for future in as_completed(futures):
-                results.append(future.result())
+    def _run(spec: TaskSpec) -> TaskResult:
+        return run_task(
+            spec,
+            ctx,
+            runtime,
+            network_override=network_override,
+            no_cache=no_cache,
+            adapter_config=adapter_config,
+        )
+
+    tracker = _Progress(len(specs), enabled=progress)
+    with tracker:
+        if concurrency == 1:
+            for spec in specs:
+                results.append(_run(spec))
+                tracker.advance(results[-1])
+        else:
+            with ThreadPoolExecutor(max_workers=concurrency) as pool:
+                futures = {pool.submit(_run, spec): spec for spec in specs}
+                for future in as_completed(futures):
+                    results.append(future.result())
+                    tracker.advance(results[-1])
 
     results.sort(key=lambda r: r.task_id)
     report = RunReport(
@@ -71,6 +76,47 @@ def run_dataset(
     ctx.report_json.write_text(report.model_dump_json(indent=2), encoding="utf-8")
     log.info("run_complete", run_id=ctx.run_id, tasks=len(results))
     return report
+
+
+class _Progress:
+    """A thin rich progress bar that no-ops when disabled or output isn't a tty."""
+
+    def __init__(self, total: int, *, enabled: bool) -> None:
+        self._enabled = enabled
+        self._total = total
+        self._progress: Any = None
+        self._task_id: Any = None
+        self._done = 0
+        self._resolved = 0
+
+    def __enter__(self) -> _Progress:
+        if self._enabled:
+            from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn
+
+            self._progress = Progress(
+                TextColumn("[bold]running[/bold]"),
+                BarColumn(),
+                MofNCompleteColumn(),
+                TextColumn("{task.fields[status]}"),
+            )
+            self._progress.start()
+            self._task_id = self._progress.add_task("run", total=self._total, status="")
+        return self
+
+    def advance(self, result: TaskResult) -> None:
+        self._done += 1
+        if result.resolved:
+            self._resolved += 1
+        if self._progress is not None:
+            self._progress.update(
+                self._task_id,
+                advance=1,
+                status=f"[green]{self._resolved} resolved[/green]",
+            )
+
+    def __exit__(self, *exc: object) -> None:
+        if self._progress is not None:
+            self._progress.stop()
 
 
 def _write_run_json(ctx: RunContext, dataset_name: str, specs: list[TaskSpec]) -> None:

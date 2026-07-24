@@ -38,6 +38,7 @@ def run_task(
     *,
     network_override: str | None = None,
     no_cache: bool = False,
+    adapter_config: dict[str, object] | None = None,
 ) -> TaskResult:
     """Execute a single task and return its result. Never raises for task-level
     failures are captured in the returned :class:`TaskResult`."""
@@ -81,7 +82,7 @@ def run_task(
             container=container,
             trace_path=trace_path,
             model=ctx.model,
-            config=_adapter_config(spec),
+            config={**_adapter_config(spec), **(adapter_config or {})},
             env={},
             logger=tlog,
             timeout_s=spec.resources.agent_timeout_s,

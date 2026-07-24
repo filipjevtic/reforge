@@ -99,11 +99,33 @@ my-task/
 
 ## Bringing your own agent
 
-An adapter is a small class that drives one agent inside the container. reforge
-ships `noop` and `gold` (no LLM, for testing the harness) and, as of the agent
-milestone, reference adapters for API models and popular agent CLIs. Adapters are
-discovered through Python entry points, so a third-party adapter is just a package
-you `pip install`. See [docs/adapter-authoring.md](docs/adapter-authoring.md).
+An adapter is a small class that drives one agent inside the container. The ones
+that ship today:
+
+- `noop` and `gold`: no LLM, used to test the harness itself.
+- `api-agent`: a minimal tool-loop agent over any model reachable through the
+  Anthropic API or an OpenAI-compatible endpoint (OpenAI, Gemini, Kimi, and so
+  on). This is how you compare a frontier model against a non-frontier one on the
+  same scaffold.
+- `claude-code` and `aider`: thin wrappers around those CLIs running inside the
+  task container.
+- `command`: run any shell command as the agent. The task instruction and model
+  are passed in as environment variables, so you can wire up a tool that has no
+  Python adapter at all.
+
+Adapters are discovered through Python entry points, so a third-party adapter is
+just a package you `pip install`. `reforge list adapters` shows what's installed,
+and `reforge adapter-check --adapter <name>` preflights its credentials. See
+[docs/adapter-authoring.md](docs/adapter-authoring.md).
+
+Pick the model with `--model`, and pass adapter-specific options as JSON with
+`--config`, for example:
+
+```bash
+reforge run --task tests/fixtures/tiny-task --adapter api-agent --model claude-sonnet-4-6
+reforge run --task my-task --adapter command \
+  --config '{"command": "my-agent --model $REFORGE_MODEL \"$REFORGE_INSTRUCTION\""}'
+```
 
 ## A note on safety
 
