@@ -128,6 +128,7 @@ def run(
     network: str | None = typer.Option(None, "--network", help="Override container network."),
     output: Path = typer.Option(Path("runs"), "--output", help="Where run dirs are written."),
     no_cache: bool = typer.Option(False, "--no-cache", help="Rebuild images from scratch."),
+    config: str | None = typer.Option(None, "--config", help="Adapter config as a JSON object."),
     fmt: str = typer.Option("table", "--format", help="Report format: table|markdown|json."),
 ) -> None:
     """Run an adapter against a task or dataset and score the results."""
@@ -139,6 +140,8 @@ def run(
 
     if bool(dataset) == bool(task):
         _fail("provide exactly one of --dataset or --task")
+
+    adapter_config = _parse_config(config)
 
     try:
         if dataset:
@@ -164,6 +167,8 @@ def run(
             concurrency=concurrency,
             network_override=network,
             no_cache=no_cache,
+            adapter_config=adapter_config,
+            progress=(fmt == "table"),
         )
     except ReforgeError as exc:
         _fail(str(exc))
@@ -215,6 +220,37 @@ def schema(
         console.print_json(text)
 
 
+@app.command("adapter-check")
+def adapter_check(
+    adapter: str = typer.Option(..., "--adapter", "-a", help="Adapter to preflight."),
+    model: str | None = typer.Option(None, "--model", "-m", help="Model id for the adapter."),
+    config: str | None = typer.Option(None, "--config", help="Adapter config as a JSON object."),
+) -> None:
+    """Preflight an adapter's credentials/config without running a task.
+
+    Resolves the adapter and runs its validate() against a lightweight input, so
+    you catch a missing API key or unknown model before spending a full run.
+    """
+    from reforge.adapters.base import AdapterInput
+    from reforge.adapters.registry import load_adapter
+
+    try:
+        instance = load_adapter(adapter)
+        probe = AdapterInput(
+            instruction="preflight",
+            workspace_path="/workspace",
+            container=_NullContainer(),  # type: ignore[arg-type]
+            trace_path=Path("/dev/null"),
+            model=model,
+            config=_parse_config(config),
+        )
+        instance.validate(probe)
+    except ReforgeError as exc:
+        _fail(str(exc))
+        return
+    console.print(f"[green]✓ {adapter} looks ready[/green] (v{instance.version})")
+
+
 @list_app.command("adapters")
 def list_adapters() -> None:
     """List installed agent adapters."""
@@ -226,6 +262,48 @@ def list_adapters() -> None:
         return
     for name, target in sorted(adapters.items()):
         console.print(f"[bold]{name}[/bold]  [dim]{target}[/dim]")
+
+
+class _NullContainer:
+    """A stand-in container for adapter-check.
+
+    There is no real container during preflight, so container-side probes (such as
+    an adapter's binary check) succeed here. adapter-check verifies host-side
+    prerequisites like API keys and model; whether a CLI is present in the task
+    image is confirmed when a real run builds it.
+    """
+
+    @property
+    def id(self) -> str:
+        return "null"
+
+    def exec(self, *args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+        from reforge.runtime.base import ExecResult
+
+        return ExecResult(exit_code=0, output="", timed_out=False)
+
+    def copy_in(self, *args: object, **kwargs: object) -> None:
+        return None
+
+    def read_file(self, *args: object, **kwargs: object) -> bytes:
+        return b""
+
+    def stop(self) -> None:
+        return None
+
+
+def _parse_config(config: str | None) -> dict[str, object]:
+    if not config:
+        return {}
+    try:
+        parsed = json.loads(config)
+    except json.JSONDecodeError as exc:
+        _fail(f"--config is not valid JSON: {exc}")
+        return {}
+    if not isinstance(parsed, dict):
+        _fail("--config must be a JSON object")
+        return {}
+    return parsed
 
 
 def _default_run_id(adapter: str) -> str:

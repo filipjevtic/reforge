@@ -42,7 +42,7 @@ hf = ["datasets>=2.20"]
 dev = [
     "pytest>=8.2",
     "pytest-mock>=3.14",
-    "ruff>=0.6",
+    "ruff==0.16.0",
     "mypy>=1.11",
     "types-PyYAML>=6.0",
 ]
@@ -60,6 +60,10 @@ reforge = "reforge.cli:app"
 [project.entry-points."reforge.adapters"]
 noop = "reforge.adapters.noop:NoopAdapter"
 gold = "reforge.adapters.gold:GoldAdapter"
+command = "reforge.adapters.command:CommandAdapter"
+api-agent = "reforge.adapters.api_agent:ApiAgentAdapter"
+claude-code = "reforge.adapters.claude_code:ClaudeCodeAdapter"
+aider = "reforge.adapters.aider:AiderAdapter"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/reforge"]
@@ -88,7 +92,7 @@ disallow_untyped_defs = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
-module = ["docker.*", "datasets.*"]
+module = ["docker.*", "datasets.*", "anthropic.*", "openai.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

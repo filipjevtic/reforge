@@ -46,3 +46,14 @@ def test_noop_does_not_resolve(runtime: DockerRuntime, tmp_path: Path) -> None:
     assert result.error is None, result.error
     assert result.resolved is False
     assert result.scores["tests"].detail["f2p_passed"] == 0
+
+
+def test_command_adapter_resolves(runtime: DockerRuntime, tmp_path: Path) -> None:
+    """The generic BYO command adapter should resolve the task end to end."""
+    spec = load_task(TINY_TASK)
+    ctx = make_run_context(run_id="it-command", output_root=tmp_path, adapter="command", model=None)
+    # Implement add() by replacing its body; sed avoids fragile shell quoting.
+    fix = "sed -i 's/raise NotImplementedError/return a + b/' calc.py"
+    result = run_task(spec, ctx, runtime, adapter_config={"command": fix})
+    assert result.error is None, result.error
+    assert result.resolved is True
