@@ -120,11 +120,16 @@ def verify_gold(
 @app.command()
 def run(
     adapter: str = typer.Option(..., "--adapter", "-a", help="Agent adapter name."),
-    dataset: Path | None = typer.Option(None, "--dataset", help="Dataset directory."),
+    dataset: str | None = typer.Option(
+        None, "--dataset", help="Dataset directory, or hf:owner/repo for a HuggingFace dataset."
+    ),
     task: Path | None = typer.Option(None, "--task", help="A single task directory."),
     model: str | None = typer.Option(None, "--model", "-m", help="Model id for the adapter."),
     run_id: str | None = typer.Option(None, "--run-id", help="Name for this run."),
     concurrency: int = typer.Option(1, "--concurrency", "-j", help="Parallel task workers."),
+    runtime_name: str = typer.Option(
+        "docker", "--runtime", help="Container runtime: docker|podman."
+    ),
     network: str | None = typer.Option(None, "--network", help="Override container network."),
     output: Path = typer.Option(Path("runs"), "--output", help="Where run dirs are written."),
     no_cache: bool = typer.Option(False, "--no-cache", help="Rebuild images from scratch."),
@@ -139,10 +144,11 @@ def run(
     fmt: str = typer.Option("table", "--format", help="Report format: table|markdown|json."),
 ) -> None:
     """Run an adapter against a task or dataset and score the results."""
+    from reforge.dataset import resolve_dataset_source
     from reforge.report.render import render_json, render_markdown, render_table
     from reforge.runner.orchestrator import run_dataset
     from reforge.runner.run_context import make_run_context
-    from reforge.runtime.docker_runtime import DockerRuntime
+    from reforge.runtime.factory import make_runtime
     from reforge.spec import load_dataset_dir, load_task
 
     if bool(dataset) == bool(task):
@@ -152,15 +158,15 @@ def run(
 
     try:
         if dataset:
-            specs = load_dataset_dir(dataset)
-            dataset_name = str(dataset)
+            specs = load_dataset_dir(resolve_dataset_source(dataset))
+            dataset_name = dataset
         else:
             specs = [load_task(task)]  # type: ignore[arg-type]
             dataset_name = str(task)
 
-        runtime = DockerRuntime()
+        runtime = make_runtime(runtime_name)
         if not runtime.is_available():
-            _fail("Docker is not available; run needs a running daemon.")
+            _fail(f"{runtime_name} is not available; run needs a running daemon.")
 
         resolved_run_id = run_id or _default_run_id(adapter)
         ctx = make_run_context(

@@ -158,18 +158,23 @@ class DockerContainerHandle(ContainerHandle):
 
 
 class DockerRuntime(ContainerRuntime):
-    def __init__(self) -> None:
+    def __init__(self, base_url: str | None = None, *, label: str = "docker") -> None:
         self._client: DockerClient | None = None
+        self._base_url = base_url
+        self._label = label
 
     def _get_client(self) -> DockerClient:
         if self._client is None:
             try:
                 import docker
 
-                self._client = docker.from_env()
+                if self._base_url:
+                    self._client = docker.DockerClient(base_url=self._base_url)
+                else:
+                    self._client = docker.from_env()
             except Exception as exc:
                 raise RuntimeBackendError(
-                    "could not connect to Docker; is the daemon running?"
+                    f"could not connect to {self._label}; is the daemon running?"
                 ) from exc
         return self._client
 
@@ -220,18 +225,33 @@ class DockerRuntime(ContainerRuntime):
         env: dict[str, str] | None = None,
     ) -> ContainerHandle:
         client = self._get_client()
-        try:
-            container = client.containers.run(
+
+        def _start(with_disk_quota: bool):  # type: ignore[no-untyped-def]
+            return client.containers.run(
                 image,
                 command=["sleep", "infinity"],
                 detach=True,
                 working_dir=workdir,
                 environment=env or {},
                 tty=False,
-                **limits.to_docker_kwargs(),
+                **limits.to_docker_kwargs(with_disk_quota=with_disk_quota),
             )
+
+        try:
+            container = _start(with_disk_quota=True)
         except Exception as exc:
-            raise RuntimeBackendError(f"failed to start container from {image}: {exc}") from exc
+            # A disk quota needs a quota-capable storage driver; if that's the
+            # only problem, retry without it rather than failing the whole run.
+            if limits.disk_quota and "storage-opt" in str(exc).lower().replace("_", "-"):
+                log.warning("disk_quota_unsupported", quota=limits.disk_quota, error=str(exc)[:200])
+                try:
+                    container = _start(with_disk_quota=False)
+                except Exception as exc2:
+                    raise RuntimeBackendError(
+                        f"failed to start container from {image}: {exc2}"
+                    ) from exc2
+            else:
+                raise RuntimeBackendError(f"failed to start container from {image}: {exc}") from exc
 
         log.info("container_started", container=container.short_id, image=image)
         return DockerContainerHandle(client, container)

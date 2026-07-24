@@ -115,6 +115,14 @@ reforge verify-gold my-task
 If the gold solution doesn't resolve the task, the task is broken. Fix it before
 using it to grade anyone. CI runs this on every shipped task.
 
+## Resource limits
+
+The `resources` block bounds each task container: `cpus`, `memory`, `pids`,
+`network` (`none` by default), and `agent_timeout_s`. `disk_quota` (for example
+`"5g"`) is enforced when the host's storage driver supports it (overlay2 on xfs
+with pquota, or btrfs); on drivers that don't, reforge logs a warning and runs
+without the quota rather than failing.
+
 ## Validate before you run
 
 ```bash

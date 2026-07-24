@@ -37,8 +37,8 @@ dependencies = [
 [project.optional-dependencies]
 # LLM providers for the judge and API-backed reference adapters.
 judge = ["anthropic>=0.40", "openai>=1.40"]
-# HuggingFace dataset loading.
-hf = ["datasets>=2.20"]
+# HuggingFace dataset loading (dataset repos of reforge task dirs).
+hf = ["huggingface-hub>=0.24"]
 dev = [
     "pytest>=8.2",
     "pytest-mock>=3.14",
@@ -92,7 +92,7 @@ disallow_untyped_defs = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
-module = ["docker.*", "anthropic.*", "openai.*"]
+module = ["docker.*", "anthropic.*", "openai.*", "huggingface_hub.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
