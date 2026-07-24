@@ -5,6 +5,8 @@ All notable changes to reforge are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-24
+
 ### Added
 - HuggingFace dataset loading: `--dataset hf:owner/repo[@revision]`.
 - Podman support via `--runtime podman` (uses Podman's Docker-compatible socket).
@@ -13,6 +15,7 @@ All notable changes to reforge are recorded here. This project follows
 - Cross-run comparison: `reforge report --compare`.
 - `--repeats` for per-task score variance and `--max-cost-usd` to cap spend.
 - Retry with backoff for transient provider errors in the LLM client.
+- Key-gated live smoke test for the real provider SDK path (agent + judge).
 
 ### Changed
 - A failing adapter or scorer now fails only its task, never the whole run.
