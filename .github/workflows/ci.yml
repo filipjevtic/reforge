@@ -65,3 +65,8 @@ jobs:
         run: pytest -m docker -q
       - name: verify-gold on the tiny task (CLI smoke)
         run: reforge verify-gold tests/fixtures/tiny-task
+      - name: verify-gold on every shipped task
+        run: |
+          for d in tasks/*/; do
+            [ -f "$d/task.yaml" ] && reforge verify-gold "$d"
+          done

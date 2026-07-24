@@ -57,3 +57,18 @@ def test_command_adapter_resolves(runtime: DockerRuntime, tmp_path: Path) -> Non
     result = run_task(spec, ctx, runtime, adapter_config={"command": fix})
     assert result.error is None, result.error
     assert result.resolved is True
+
+
+REPLICATION_TASK = Path(__file__).parent.parent.parent / "tasks" / "replication-staging-env"
+
+
+def test_dependency_scorer_reports_misses(runtime: DockerRuntime, tmp_path: Path) -> None:
+    """noop on the replication task should miss every declared dependency."""
+    spec = load_task(REPLICATION_TASK)
+    ctx = make_run_context(run_id="it-dep", output_root=tmp_path, adapter="noop", model=None)
+    result = run_task(spec, ctx, runtime)
+    assert result.error is None, result.error
+    assert result.resolved is False
+    dep = result.scores["dependency_coverage"].detail
+    # nothing was created, so all required deps are missed
+    assert set(dep["missed"]) == set(dep["required"])

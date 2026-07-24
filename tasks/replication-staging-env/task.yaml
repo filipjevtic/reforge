@@ -1,0 +1,79 @@
+schema_version: 1
+id: replication-staging-env
+category: replication
+title: "Create a staging environment that mirrors production"
+description: >
+  A replication task: the repo defines prod and dev environments under
+  environments/. The agent must add a staging environment that mirrors prod,
+  wiring up every service and config dependency. The dependency-coverage scorer
+  reports anything it missed (for example, forgetting Redis).
+
+source:
+  type: local
+  path: src
+  strip_git: true
+
+environment:
+  dockerfile: Dockerfile
+  workdir: /workspace
+
+instruction: |
+  environments/prod and environments/dev each contain a docker-compose.yml.
+  Create environments/staging/docker-compose.yml that mirrors prod: include every
+  service prod runs (web, postgres, redis) and wire the same configuration keys
+  (DATABASE_URL, REDIS_URL, SECRET_KEY), adapting values for staging rather than
+  copying prod verbatim. Do not modify prod or dev.
+
+verification:
+  entrypoint: verifier/run_tests.sh
+  framework: pytest
+  fail_to_pass:
+    - "test_staging.py::test_staging_has_all_services"
+    - "test_staging.py::test_staging_wires_config"
+  pass_to_pass:
+    - "test_prod.py::test_prod_intact"
+  timeout_s: 180
+
+dependency_coverage:
+  required:
+    services:
+      - postgres
+      - redis
+    config_refs:
+      - DATABASE_URL
+      - REDIS_URL
+      - SECRET_KEY
+  detectors:
+    - type: service_deps
+      scope: "environments/staging/**"
+    - type: grep
+      scope: "environments/staging/**"
+
+rubric:
+  criteria:
+    - id: completeness
+      weight: 0.5
+      prompt: "Does staging include every prod service and config dependency?"
+      scale: [0, 5]
+    - id: adapted_values
+      weight: 0.3
+      prompt: "Are values adapted for staging rather than copied verbatim from prod?"
+      scale: [0, 5]
+    - id: conventions
+      weight: 0.2
+      prompt: "Does it follow the structure of the existing environment files?"
+      scale: [0, 5]
+
+scoring:
+  weights:
+    tests: 0.4
+    dependency_coverage: 0.35
+    judge: 0.25
+  gate:
+    require_pass_to_pass: true
+
+resources:
+  cpus: 1
+  memory: "1g"
+  network: none
+  agent_timeout_s: 900

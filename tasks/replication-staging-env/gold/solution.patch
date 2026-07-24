@@ -1,0 +1,22 @@
+diff --git a/environments/staging/docker-compose.yml b/environments/staging/docker-compose.yml
+new file mode 100644
+index 0000000..7c83237
+--- /dev/null
++++ b/environments/staging/docker-compose.yml
+@@ -0,0 +1,16 @@
++services:
++  web:
++    image: mycompany/web:latest
++    environment:
++      DATABASE_URL: postgres://app:app@postgres:5432/app_staging
++      REDIS_URL: redis://redis:6379/1
++      SECRET_KEY: staging-secret
++    depends_on:
++      - postgres
++      - redis
++  postgres:
++    image: postgres:16
++    environment:
++      POSTGRES_DB: app_staging
++  redis:
++    image: redis:7
