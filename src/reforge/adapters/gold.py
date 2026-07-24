@@ -33,22 +33,28 @@ class GoldAdapter(AgentAdapter):
         # put_archive lands the file at /tmp/<name>; normalize to a stable path.
         input.container.exec(["mv", f"/tmp/{patch_path.name}", _CONTAINER_PATCH_PATH])
 
-        result = input.container.exec(
-            ["git", "apply", "--whitespace=nowarn", _CONTAINER_PATCH_PATH],
+        git_res = input.container.exec(
+            ["git", "apply", "--whitespace=nowarn", "-v", _CONTAINER_PATCH_PATH],
             workdir=input.workspace_path,
-            stream_to=input.trace_path,
         )
-        if not result.ok:
+        outputs = [f"$ git apply -v (exit {git_res.exit_code})\n{git_res.output}"]
+        result = git_res
+        if not git_res.ok:
             # Fall back to patch(1) for diffs git refuses (e.g. no a/ b/ prefixes).
-            result = input.container.exec(
+            patch_res = input.container.exec(
                 ["sh", "-c", f"patch -p1 < {_CONTAINER_PATCH_PATH}"],
                 workdir=input.workspace_path,
-                stream_to=input.trace_path,
             )
+            outputs.append(f"$ patch -p1 (exit {patch_res.exit_code})\n{patch_res.output}")
+            result = patch_res
 
+        input.trace_path.write_text("\n".join(outputs), encoding="utf-8")
+
+        if not result.ok:
+            raise AdapterError(
+                f"gold patch did not apply (git apply exit {git_res.exit_code}): "
+                f"{git_res.output.strip()[:600]}"
+            )
         return AdapterResult(
-            success=result.ok,
-            trace_path=input.trace_path,
-            exit_code=result.exit_code,
-            error=None if result.ok else "failed to apply gold patch",
+            success=True, trace_path=input.trace_path, exit_code=result.exit_code
         )
