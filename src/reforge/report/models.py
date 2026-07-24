@@ -65,6 +65,18 @@ class LeaderboardRow(BaseModel):
     mean_duration_s: float = 0.0
 
 
+class TaskStat(BaseModel):
+    """Per-task aggregation across repeated runs (variance signal)."""
+
+    task_id: str
+    category: str
+    runs: int = 0
+    resolved: int = 0
+    resolved_rate: float = 0.0
+    mean_final_score: float = 0.0
+    stdev_final_score: float = 0.0
+
+
 class RunReport(BaseModel):
     run_id: str
     tool_version: str
@@ -72,5 +84,10 @@ class RunReport(BaseModel):
     adapter: str
     model: str | None = None
     created_at: str | None = None
+    repeats: int = 1
+    budget_usd: float | None = None
+    total_cost_usd: float = 0.0
+    budget_exhausted: bool = False
     results: list[TaskResult] = Field(default_factory=list)
     leaderboard: list[LeaderboardRow] = Field(default_factory=list)
+    task_stats: list[TaskStat] = Field(default_factory=list)

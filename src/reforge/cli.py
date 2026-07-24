@@ -132,6 +132,10 @@ def run(
     no_judge: bool = typer.Option(False, "--no-judge", help="Skip the LLM judge (deterministic)."),
     judge_model: str | None = typer.Option(None, "--judge-model", help="Model id for the judge."),
     judge_samples: int = typer.Option(1, "--judge-samples", help="Judge samples; median is taken."),
+    repeats: int = typer.Option(1, "--repeats", help="Run each task N times for variance."),
+    max_cost_usd: float | None = typer.Option(
+        None, "--max-cost-usd", help="Stop launching tasks once spend reaches this budget."
+    ),
     fmt: str = typer.Option("table", "--format", help="Report format: table|markdown|json."),
 ) -> None:
     """Run an adapter against a task or dataset and score the results."""
@@ -178,6 +182,8 @@ def run(
             no_cache=no_cache,
             adapter_config=adapter_config,
             progress=(fmt == "table"),
+            repeats=repeats,
+            max_cost_usd=max_cost_usd,
         )
     except ReforgeError as exc:
         _fail(str(exc))
@@ -195,16 +201,35 @@ def run(
 @app.command()
 def report(
     run_dir: Path = typer.Argument(..., help="A run directory containing report.json."),
+    compare: list[Path] = typer.Option(
+        None, "--compare", help="Other run dirs to combine into one leaderboard."
+    ),
     fmt: str = typer.Option("table", "--format", help="Report format: table|markdown|json."),
 ) -> None:
-    """Render a previously written run report."""
+    """Render a run report, or compare several runs on one leaderboard."""
+    from reforge.report.aggregate import build_leaderboard, build_task_stats
     from reforge.report.models import RunReport
-    from reforge.report.render import render_json, render_markdown, render_table
+    from reforge.report.render import render_comparison, render_json, render_markdown, render_table
 
-    report_file = run_dir / "report.json"
-    if not report_file.is_file():
-        _fail(f"no report.json in {run_dir}")
-    parsed = RunReport.model_validate_json(report_file.read_text(encoding="utf-8"))
+    parsed = _load_report(run_dir)
+
+    if compare:
+        reports = [parsed, *(_load_report(d) for d in compare)]
+        combined = [r for rep in reports for r in rep.results]
+        merged = RunReport(
+            run_id="+".join(r.run_id for r in reports),
+            tool_version=parsed.tool_version,
+            dataset=parsed.dataset,
+            adapter="(multiple)",
+            results=combined,
+            leaderboard=build_leaderboard(combined),
+            task_stats=build_task_stats(combined),
+        )
+        if fmt == "json":
+            console.print_json(render_json(merged))
+        else:
+            render_comparison(merged, console)
+        return
 
     if fmt == "json":
         console.print_json(render_json(parsed))
@@ -212,6 +237,15 @@ def report(
         console.print(render_markdown(parsed))
     else:
         render_table(parsed, console)
+
+
+def _load_report(run_dir: Path):  # type: ignore[no-untyped-def]
+    from reforge.report.models import RunReport
+
+    report_file = run_dir / "report.json"
+    if not report_file.is_file():
+        _fail(f"no report.json in {run_dir}")
+    return RunReport.model_validate_json(report_file.read_text(encoding="utf-8"))
 
 
 @app.command()

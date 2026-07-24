@@ -18,8 +18,10 @@ class RunContext:
     judge_model: str | None = None
     judge_samples: int = 1
 
-    def task_dir(self, task_id: str) -> Path:
+    def task_dir(self, task_id: str, attempt: int = 0) -> Path:
         path = self.run_dir / "tasks" / task_id
+        if attempt > 0:
+            path = path / f"run-{attempt}"
         path.mkdir(parents=True, exist_ok=True)
         return path
 

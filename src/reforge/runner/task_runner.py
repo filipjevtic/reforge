@@ -40,10 +40,11 @@ def run_task(
     no_cache: bool = False,
     adapter_config: dict[str, object] | None = None,
     judge_limiter: object | None = None,
+    attempt: int = 0,
 ) -> TaskResult:
     """Execute a single task and return its result. Never raises for task-level
     failures are captured in the returned :class:`TaskResult`."""
-    task_out = ctx.task_dir(spec.id)
+    task_out = ctx.task_dir(spec.id, attempt)
     tlog = log.bind(task=spec.id, adapter=ctx.adapter)
     started = time.monotonic()
 
@@ -127,6 +128,9 @@ def run_task(
                 judge_result = judge.score(scoring_ctx)
                 subscores["judge"] = judge_result
                 judge_model_used = judge_result.detail.get("judge_model")
+                judge_cost = judge_result.detail.get("cost_usd")
+                if judge_cost:
+                    result.cost_usd = (result.cost_usd or 0.0) + float(judge_cost)
 
         score = compose(spec, subscores)
         result.resolved = score.resolved
