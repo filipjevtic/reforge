@@ -29,32 +29,46 @@ class GoldAdapter(AgentAdapter):
 
     def run(self, input: AdapterInput) -> AdapterResult:
         patch_path = Path(input.config["gold_patch_path"])
+        patch_text = patch_path.read_text(encoding="utf-8")
         input.container.copy_in(patch_path, "/tmp")
         # put_archive lands the file at /tmp/<name>; normalize to a stable path.
         input.container.exec(["mv", f"/tmp/{patch_path.name}", _CONTAINER_PATCH_PATH])
 
-        git_res = input.container.exec(
-            ["git", "apply", "--whitespace=nowarn", "-v", _CONTAINER_PATCH_PATH],
+        # Pre-create parent directories of every target file. git apply usually
+        # creates leading dirs itself, but doing it explicitly makes application
+        # robust across Docker storage backends where a put_archive'd directory
+        # is not yet writable in the way git apply expects.
+        for parent in _target_parents(patch_text):
+            input.container.exec(["mkdir", "-p", parent], workdir=input.workspace_path)
+
+        result = input.container.exec(
+            ["git", "apply", "--whitespace=nowarn", _CONTAINER_PATCH_PATH],
             workdir=input.workspace_path,
         )
-        outputs = [f"$ git apply -v (exit {git_res.exit_code})\n{git_res.output}"]
-        result = git_res
-        if not git_res.ok:
-            # Fall back to patch(1) for diffs git refuses (e.g. no a/ b/ prefixes).
-            patch_res = input.container.exec(
-                ["sh", "-c", f"patch -p1 < {_CONTAINER_PATCH_PATH}"],
-                workdir=input.workspace_path,
-            )
-            outputs.append(f"$ patch -p1 (exit {patch_res.exit_code})\n{patch_res.output}")
-            result = patch_res
-
-        input.trace_path.write_text("\n".join(outputs), encoding="utf-8")
+        input.trace_path.write_text(
+            f"$ git apply (exit {result.exit_code})\n{result.output}", encoding="utf-8"
+        )
 
         if not result.ok:
-            raise AdapterError(
-                f"gold patch did not apply (git apply exit {git_res.exit_code}): "
-                f"{git_res.output.strip()[:600]}"
+            debug = input.container.exec(
+                ["sh", "-c", "ls -la . && echo '--' && git status --porcelain"],
+                workdir=input.workspace_path,
             )
-        return AdapterResult(
-            success=True, trace_path=input.trace_path, exit_code=result.exit_code
-        )
+            raise AdapterError(
+                f"gold patch did not apply (git apply exit {result.exit_code}): "
+                f"{result.output.strip()[:400]} :: workspace: {debug.output.strip()[:400]}"
+            )
+        return AdapterResult(success=True, trace_path=input.trace_path, exit_code=result.exit_code)
+
+
+def _target_parents(patch_text: str) -> list[str]:
+    """Parent directories of files the patch creates or modifies (from +++ lines)."""
+    parents: list[str] = []
+    for line in patch_text.splitlines():
+        if line.startswith("+++ ") and not line.startswith("+++ /dev/null"):
+            path = line[4:].strip()
+            if path.startswith("b/"):
+                path = path[2:]
+            if "/" in path:
+                parents.append(path.rsplit("/", 1)[0])
+    return sorted(set(parents))
