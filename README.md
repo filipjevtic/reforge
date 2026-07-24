@@ -1,0 +1,123 @@
+# reforge
+
+**Benchmark how well AI coding agents work on _your_ codebase, not someone else's.**
+
+Public leaderboards tell you how a model does on public repositories. They can't
+tell you the thing you actually need to know before you adopt a tool: how well
+does this agent do the work _we_ do, in _our_ code? reforge answers that. You give
+it tasks built from your own repositories, point it at any agent (a frontier CLI,
+a hosted API, an open-weights model), and it reports back with reproducible,
+comparable scores.
+
+It measures two kinds of work that map onto how teams actually adopt AI:
+
+- **Replication**: reproduce something that already exists, using the codebase as
+  context. "Stand up staging and test environments that mirror prod." Did the
+  agent wire up every service and config dependency, or quietly drop Redis?
+- **New features**: build something that isn't there yet, with little prior
+  context. "Add an analytics dashboard over our events table." Does it work, and
+  does it fit how the rest of the code is written?
+
+reforge is a command-line tool. There is no UI, no SaaS, nothing to sign up for.
+It runs on your machine, against your Docker daemon, and your code never leaves it.
+
+## How it works
+
+reforge borrows the parts of [SWE-bench](https://www.swebench.com/) and
+[Terminal-bench](https://www.tbench.ai/) that have proven out, and adds what those
+benchmarks don't cover for this problem.
+
+A **task** is a directory: a `task.yaml`, a `Dockerfile` for the environment, a
+verifier that runs the tests, and a gold (reference) solution. For each task
+reforge:
+
+1. builds the task image and copies your code into a fresh, network-isolated
+   container;
+2. snapshots a base commit, then hands the container to an **adapter** that drives
+   the agent under test;
+3. captures the agent's diff with git, *before* the held-out tests are ever
+   injected, so nothing can be gamed;
+4. runs the verifier and scores the result.
+
+Scoring is a blend rather than a single pass/fail:
+
+- **Tests**: the SWE-bench bar. The tests that should now pass do, and nothing
+  that used to pass broke.
+- **Dependency coverage**: did the agent wire up every dependency the task says a
+  correct solution needs? Misses are listed by name.
+- **LLM judge**: a rubric score for the fuzzier questions of accuracy and style.
+
+You choose the weights per task, and you can turn the judge off entirely for a
+fully deterministic run.
+
+## Install
+
+reforge needs Docker and Python 3.11+.
+
+```bash
+pip install -e ".[dev]"        # from a clone
+```
+
+## Quick start
+
+```bash
+# Check a task is well-formed.
+reforge validate tests/fixtures/tiny-task
+
+# Prove the task's gold solution actually resolves it (no LLM involved).
+reforge verify-gold tests/fixtures/tiny-task
+
+# Run an agent against a single task. `gold` applies the reference solution,
+# so the task resolves; `noop` changes nothing, so it doesn't.
+reforge run --task tests/fixtures/tiny-task --adapter gold --format table
+
+# Point --dataset at a directory of tasks to run them all and print a leaderboard.
+reforge run --dataset ./tasks --adapter gold --format table
+```
+
+Results land in `runs/<run-id>/`: a `report.json`, and per task the captured
+diff, the verifier log, and a `result.json` with the full score breakdown and
+provenance.
+
+## Writing a task
+
+A task directory looks like this:
+
+```
+my-task/
+├── task.yaml            # the spec: prompt, tests, scoring weights, limits
+├── Dockerfile           # the environment
+├── verifier/
+│   └── run_tests.sh     # runs the tests, writes JUnit XML to $REFORGE_REPORT
+├── gold/
+│   └── solution.patch   # the reference solution
+└── (your source, or a git ref in task.yaml)
+```
+
+`tests/fixtures/tiny-task` is a complete, minimal example. See
+[docs/task-authoring.md](docs/task-authoring.md) for the full schema.
+
+## Bringing your own agent
+
+An adapter is a small class that drives one agent inside the container. reforge
+ships `noop` and `gold` (no LLM, for testing the harness) and, as of the agent
+milestone, reference adapters for API models and popular agent CLIs. Adapters are
+discovered through Python entry points, so a third-party adapter is just a package
+you `pip install`. See [docs/adapter-authoring.md](docs/adapter-authoring.md).
+
+## A note on safety
+
+reforge runs code produced by an agent. Each task runs in its own container with
+no network by default, dropped capabilities, and CPU, memory, and PID limits. Even
+so, treat agent output as untrusted and run reforge on a disposable or isolated
+host. It never mounts your Docker socket into a task container.
+
+## Status
+
+Early and moving fast. The task format and adapter contract are stabilizing; see
+the [open issues](https://github.com/filipjevtic/reforge/issues) and
+[docs/architecture.md](docs/architecture.md) for where things are headed.
+
+## License
+
+Apache 2.0. See [LICENSE](LICENSE).

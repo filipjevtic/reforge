@@ -1,0 +1,44 @@
+schema_version: 1
+id: tiny-task
+category: new_feature
+title: "Implement add() in the tiny calc module"
+description: >
+  A minimal task used to self-verify the reforge harness end to end without any
+  LLM. The workspace ships a calc module whose add() raises NotImplementedError;
+  the agent must make it return the sum of its arguments.
+
+source:
+  type: local
+  path: src
+  strip_git: true
+
+environment:
+  dockerfile: Dockerfile
+  workdir: /workspace
+
+instruction: |
+  calc.py defines add(a, b), which currently raises NotImplementedError.
+  Implement it so that add(a, b) returns a + b. Do not change existing().
+
+verification:
+  entrypoint: verifier/run_tests.sh
+  framework: pytest
+  fail_to_pass:
+    - "test_calc.py::test_add"
+  pass_to_pass:
+    - "test_calc.py::test_existing"
+  timeout_s: 120
+
+scoring:
+  weights:
+    tests: 1.0
+    dependency_coverage: 0.0
+    judge: 0.0
+  gate:
+    require_pass_to_pass: true
+
+resources:
+  cpus: 1
+  memory: "1g"
+  network: none
+  agent_timeout_s: 300

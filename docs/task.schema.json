@@ -1,0 +1,537 @@
+{
+  "$defs": {
+    "Category": {
+      "description": "What kind of work the task asks the agent to do.",
+      "enum": [
+        "replication",
+        "new_feature"
+      ],
+      "title": "Category",
+      "type": "string"
+    },
+    "Context": {
+      "additionalProperties": false,
+      "description": "What the agent may see. Hidden paths are removed before the agent runs.",
+      "properties": {
+        "hidden_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Hidden Paths",
+          "type": "array"
+        },
+        "visible_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Visible Paths",
+          "type": "array"
+        }
+      },
+      "title": "Context",
+      "type": "object"
+    },
+    "DependencyCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "detectors": {
+          "items": {
+            "$ref": "#/$defs/Detector"
+          },
+          "title": "Detectors",
+          "type": "array"
+        },
+        "required": {
+          "$ref": "#/$defs/RequiredDeps"
+        }
+      },
+      "title": "DependencyCoverage",
+      "type": "object"
+    },
+    "Detector": {
+      "additionalProperties": false,
+      "description": "How to detect what the agent actually wired up, scoped by a glob.",
+      "properties": {
+        "scope": {
+          "default": "**",
+          "description": "Glob limiting which files to inspect.",
+          "title": "Scope",
+          "type": "string"
+        },
+        "type": {
+          "description": "Detector name, e.g. python_imports or env_refs.",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "Detector",
+      "type": "object"
+    },
+    "Environment": {
+      "additionalProperties": false,
+      "description": "The container image the task runs in.",
+      "properties": {
+        "build_args": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Build Args",
+          "type": "object"
+        },
+        "dockerfile": {
+          "default": "Dockerfile",
+          "description": "Path relative to the task dir.",
+          "title": "Dockerfile",
+          "type": "string"
+        },
+        "workdir": {
+          "default": "/workspace",
+          "title": "Workdir",
+          "type": "string"
+        }
+      },
+      "title": "Environment",
+      "type": "object"
+    },
+    "ExpectedArtifacts": {
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "items": {
+            "$ref": "#/$defs/ExpectedFile"
+          },
+          "title": "Files",
+          "type": "array"
+        }
+      },
+      "title": "ExpectedArtifacts",
+      "type": "object"
+    },
+    "ExpectedFile": {
+      "additionalProperties": false,
+      "properties": {
+        "must_exist": {
+          "default": true,
+          "title": "Must Exist",
+          "type": "boolean"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "ExpectedFile",
+      "type": "object"
+    },
+    "NetworkMode": {
+      "enum": [
+        "none",
+        "bridge"
+      ],
+      "title": "NetworkMode",
+      "type": "string"
+    },
+    "RequiredDeps": {
+      "additionalProperties": false,
+      "description": "Ground-truth dependencies a correct solution must wire up.",
+      "properties": {
+        "config_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Config Refs",
+          "type": "array"
+        },
+        "imports": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Imports",
+          "type": "array"
+        },
+        "services": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Services",
+          "type": "array"
+        }
+      },
+      "title": "RequiredDeps",
+      "type": "object"
+    },
+    "Resources": {
+      "additionalProperties": false,
+      "description": "Isolation and resource limits applied to the task container.",
+      "properties": {
+        "agent_timeout_s": {
+          "default": 1800,
+          "exclusiveMinimum": 0,
+          "title": "Agent Timeout S",
+          "type": "integer"
+        },
+        "cpus": {
+          "default": 2.0,
+          "exclusiveMinimum": 0,
+          "title": "Cpus",
+          "type": "number"
+        },
+        "disk_quota": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disk Quota"
+        },
+        "memory": {
+          "default": "4g",
+          "title": "Memory",
+          "type": "string"
+        },
+        "network": {
+          "$ref": "#/$defs/NetworkMode",
+          "default": "none"
+        },
+        "pids": {
+          "default": 512,
+          "exclusiveMinimum": 0,
+          "title": "Pids",
+          "type": "integer"
+        }
+      },
+      "title": "Resources",
+      "type": "object"
+    },
+    "Rubric": {
+      "additionalProperties": false,
+      "properties": {
+        "criteria": {
+          "items": {
+            "$ref": "#/$defs/RubricCriterion"
+          },
+          "title": "Criteria",
+          "type": "array"
+        }
+      },
+      "title": "Rubric",
+      "type": "object"
+    },
+    "RubricCriterion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "title": "Prompt",
+          "type": "string"
+        },
+        "scale": {
+          "default": [
+            0,
+            5
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Scale",
+          "type": "array"
+        },
+        "weight": {
+          "exclusiveMinimum": 0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "weight",
+        "prompt"
+      ],
+      "title": "RubricCriterion",
+      "type": "object"
+    },
+    "Scoring": {
+      "additionalProperties": false,
+      "properties": {
+        "gate": {
+          "$ref": "#/$defs/ScoringGate"
+        },
+        "weights": {
+          "$ref": "#/$defs/ScoringWeights"
+        }
+      },
+      "title": "Scoring",
+      "type": "object"
+    },
+    "ScoringGate": {
+      "additionalProperties": false,
+      "properties": {
+        "require_pass_to_pass": {
+          "default": true,
+          "title": "Require Pass To Pass",
+          "type": "boolean"
+        }
+      },
+      "title": "ScoringGate",
+      "type": "object"
+    },
+    "ScoringWeights": {
+      "additionalProperties": false,
+      "properties": {
+        "dependency_coverage": {
+          "default": 0.25,
+          "minimum": 0,
+          "title": "Dependency Coverage",
+          "type": "number"
+        },
+        "judge": {
+          "default": 0.25,
+          "minimum": 0,
+          "title": "Judge",
+          "type": "number"
+        },
+        "tests": {
+          "default": 0.5,
+          "minimum": 0,
+          "title": "Tests",
+          "type": "number"
+        }
+      },
+      "title": "ScoringWeights",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "description": "Where the codebase-under-test comes from.",
+      "properties": {
+        "archive": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tarball path when type=tarball.",
+          "title": "Archive"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path when type=local (task-dir relative).",
+          "title": "Path"
+        },
+        "ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Commit SHA (pin for reproducibility).",
+          "title": "Ref"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Git URL when type=git.",
+          "title": "Repo"
+        },
+        "strip_git": {
+          "default": true,
+          "description": "Remove .git before the agent runs.",
+          "title": "Strip Git",
+          "type": "boolean"
+        },
+        "subdir": {
+          "default": "",
+          "description": "Treat this subdirectory as the workspace root.",
+          "title": "Subdir",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/SourceType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SourceType": {
+      "enum": [
+        "git",
+        "local",
+        "tarball"
+      ],
+      "title": "SourceType",
+      "type": "string"
+    },
+    "TestFramework": {
+      "enum": [
+        "pytest",
+        "jest",
+        "gotest",
+        "junit",
+        "custom"
+      ],
+      "title": "TestFramework",
+      "type": "string"
+    },
+    "Verification": {
+      "additionalProperties": false,
+      "description": "Deterministic test verification (SWE-bench FAIL_TO_PASS / PASS_TO_PASS).",
+      "properties": {
+        "entrypoint": {
+          "description": "Script in verifier/ the harness execs to run tests.",
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "fail_to_pass": {
+          "description": "Tests that must go from failing to passing (the work got done).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Fail To Pass",
+          "type": "array"
+        },
+        "framework": {
+          "$ref": "#/$defs/TestFramework",
+          "default": "pytest"
+        },
+        "pass_to_pass": {
+          "description": "Tests that must stay green (no regressions).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Pass To Pass",
+          "type": "array"
+        },
+        "timeout_s": {
+          "default": 900,
+          "exclusiveMinimum": 0,
+          "title": "Timeout S",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "entrypoint"
+      ],
+      "title": "Verification",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A single benchmark task, parsed from ``task.yaml``.",
+  "properties": {
+    "category": {
+      "$ref": "#/$defs/Category"
+    },
+    "context": {
+      "$ref": "#/$defs/Context"
+    },
+    "dependency_coverage": {
+      "$ref": "#/$defs/DependencyCoverage"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "environment": {
+      "$ref": "#/$defs/Environment"
+    },
+    "expected_artifacts": {
+      "$ref": "#/$defs/ExpectedArtifacts"
+    },
+    "id": {
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "instruction": {
+      "title": "Instruction",
+      "type": "string"
+    },
+    "resources": {
+      "$ref": "#/$defs/Resources"
+    },
+    "rubric": {
+      "$ref": "#/$defs/Rubric"
+    },
+    "schema_version": {
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scoring": {
+      "$ref": "#/$defs/Scoring"
+    },
+    "source": {
+      "$ref": "#/$defs/Source"
+    },
+    "task_dir": {
+      "default": ".",
+      "format": "path",
+      "title": "Task Dir",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "verification": {
+      "$ref": "#/$defs/Verification"
+    }
+  },
+  "required": [
+    "id",
+    "category",
+    "title",
+    "source",
+    "instruction",
+    "verification"
+  ],
+  "title": "TaskSpec",
+  "type": "object"
+}
