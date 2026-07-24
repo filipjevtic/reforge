@@ -68,5 +68,5 @@ jobs:
       - name: verify-gold on every shipped task
         run: |
           for d in tasks/*/; do
-            [ -f "$d/task.yaml" ] && reforge verify-gold "$d"
+            [ -f "$d/task.yaml" ] && reforge -v verify-gold "$d"
           done

@@ -72,6 +72,11 @@ def run_task(
         # Place the source into the container and snapshot a base commit.
         container.exec(["mkdir", "-p", spec.environment.workdir])
         container.copy_in(workspace_tmp / "src", spec.environment.workdir)
+        listing = container.exec(
+            ["sh", "-c", "find . -maxdepth 3 -not -path './.git/*' | sort | head -40"],
+            workdir=spec.environment.workdir,
+        )
+        tlog.info("workspace_listing", files=listing.output.replace("\n", " "))
         base_sha = _snapshot_base(container, spec.environment.workdir)
 
         # Run the agent.
