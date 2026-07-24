@@ -42,7 +42,7 @@ hf = ["datasets>=2.20"]
 dev = [
     "pytest>=8.2",
     "pytest-mock>=3.14",
-    "ruff>=0.6",
+    "ruff==0.16.0",
     "mypy>=1.11",
     "types-PyYAML>=6.0",
 ]

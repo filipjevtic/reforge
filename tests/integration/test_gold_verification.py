@@ -52,11 +52,8 @@ def test_command_adapter_resolves(runtime: DockerRuntime, tmp_path: Path) -> Non
     """The generic BYO command adapter should resolve the task end to end."""
     spec = load_task(TINY_TASK)
     ctx = make_run_context(run_id="it-command", output_root=tmp_path, adapter="command", model=None)
-    fix = (
-        'printf \'"""tiny calc module"""\\n'
-        "def add(a, b):\\n    return a + b\\n"
-        "def existing():\\n    return \"ok\"\\n' > calc.py"
-    )
+    # Implement add() by replacing its body; sed avoids fragile shell quoting.
+    fix = "sed -i 's/raise NotImplementedError/return a + b/' calc.py"
     result = run_task(spec, ctx, runtime, adapter_config={"command": fix})
     assert result.error is None, result.error
     assert result.resolved is True
