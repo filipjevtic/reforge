@@ -1,0 +1,75 @@
+schema_version: 1
+id: newfeature-analytics
+category: new_feature
+title: "Add an analytics module over internal events data"
+description: >
+  A net-new feature task with no prior analytics code in the repo. The agent must
+  build daily-active-user and top-event aggregations over the events dataset,
+  wiring up the internal data source rather than reinventing it.
+
+source:
+  type: local
+  path: src
+  strip_git: true
+
+environment:
+  dockerfile: Dockerfile
+  workdir: /workspace
+
+instruction: |
+  The package `app` has an events dataset in `app/events.py` (a list of dicts with
+  user_id, event_type, and day). Add a new module `app/analytics.py` that reads
+  that dataset and exposes:
+
+    - daily_active_users() -> dict mapping each day to the count of distinct
+      user_ids active that day.
+    - top_event_types(n=5) -> list of (event_type, count) tuples, most common
+      first, limited to n entries.
+
+  Use the existing data in app/events.py; do not hardcode results.
+
+verification:
+  entrypoint: verifier/run_tests.sh
+  framework: pytest
+  fail_to_pass:
+    - "test_analytics.py::test_dau"
+    - "test_analytics.py::test_top_events"
+  pass_to_pass: []
+  timeout_s: 180
+
+dependency_coverage:
+  required:
+    imports:
+      - "app.events"
+  detectors:
+    - type: python_imports
+      scope: "app/analytics.py"
+
+rubric:
+  criteria:
+    - id: correctness
+      weight: 0.5
+      prompt: "Are the DAU and top-event aggregations computed correctly?"
+      scale: [0, 5]
+    - id: uses_real_data
+      weight: 0.3
+      prompt: "Does it read app/events.py rather than hardcoding values?"
+      scale: [0, 5]
+    - id: style
+      weight: 0.2
+      prompt: "Is the code clean and idiomatic for a small Python module?"
+      scale: [0, 5]
+
+scoring:
+  weights:
+    tests: 0.6
+    dependency_coverage: 0.2
+    judge: 0.2
+  gate:
+    require_pass_to_pass: true
+
+resources:
+  cpus: 1
+  memory: "1g"
+  network: none
+  agent_timeout_s: 900

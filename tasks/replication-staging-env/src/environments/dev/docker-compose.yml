@@ -1,0 +1,16 @@
+services:
+  web:
+    image: mycompany/web:latest
+    environment:
+      DATABASE_URL: postgres://app:app@postgres:5432/app_dev
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret
+    depends_on:
+      - postgres
+      - redis
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: app_dev
+  redis:
+    image: redis:7

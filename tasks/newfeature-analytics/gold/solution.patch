@@ -1,0 +1,21 @@
+diff --git a/app/analytics.py b/app/analytics.py
+new file mode 100644
+index 0000000..b305e62
+--- /dev/null
++++ b/app/analytics.py
+@@ -0,0 +1,15 @@
++from app.events import EVENTS
++
++
++def daily_active_users():
++    by_day = {}
++    for event in EVENTS:
++        by_day.setdefault(event["day"], set()).add(event["user_id"])
++    return {day: len(users) for day, users in by_day.items()}
++
++
++def top_event_types(n=5):
++    from collections import Counter
++
++    counts = Counter(event["event_type"] for event in EVENTS)
++    return counts.most_common(n)

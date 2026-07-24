@@ -14,12 +14,18 @@ SWE-bench uses.
 from __future__ import annotations
 
 from reforge.scoring.base import Scorer, ScorerResult, TaskScoringContext
-from reforge.scoring.log_parsers import TestStatus, match_status, parse_junit_xml
+from reforge.scoring.log_parsers import (
+    TestStatus,
+    match_status,
+    parse_go_json,
+    parse_junit_xml,
+)
+from reforge.spec.models import TestFramework
 from reforge.utils.errors import ScoringError
 from reforge.utils.logging import get_logger
 
 VERIFIER_DIR_IN_CONTAINER = "/verifier"
-REPORT_PATH = "/tmp/reforge_report.xml"
+REPORT_PATH = "/tmp/reforge_report"
 
 log = get_logger("scoring.tests")
 
@@ -39,15 +45,18 @@ class TestScorer(Scorer):
         )
 
         try:
-            report_xml = ctx.container.read_file(REPORT_PATH).decode("utf-8", errors="replace")
+            report = ctx.container.read_file(REPORT_PATH).decode("utf-8", errors="replace")
         except Exception as exc:
             raise ScoringError(
                 f"verifier did not produce a report at {REPORT_PATH}: {exc}. "
                 f"Entrypoint exited {exec_result.exit_code}. "
-                "The verifier script must write JUnit XML to $REFORGE_REPORT."
+                "The verifier script must write its report to $REFORGE_REPORT."
             ) from exc
 
-        results = parse_junit_xml(report_xml)
+        if spec.verification.framework is TestFramework.gotest:
+            results = parse_go_json(report)
+        else:
+            results = parse_junit_xml(report)
 
         f2p_detail: dict[str, str] = {}
         f2p_passed = 0

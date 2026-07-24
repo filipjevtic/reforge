@@ -129,6 +129,9 @@ def run(
     output: Path = typer.Option(Path("runs"), "--output", help="Where run dirs are written."),
     no_cache: bool = typer.Option(False, "--no-cache", help="Rebuild images from scratch."),
     config: str | None = typer.Option(None, "--config", help="Adapter config as a JSON object."),
+    no_judge: bool = typer.Option(False, "--no-judge", help="Skip the LLM judge (deterministic)."),
+    judge_model: str | None = typer.Option(None, "--judge-model", help="Model id for the judge."),
+    judge_samples: int = typer.Option(1, "--judge-samples", help="Judge samples; median is taken."),
     fmt: str = typer.Option("table", "--format", help="Report format: table|markdown|json."),
 ) -> None:
     """Run an adapter against a task or dataset and score the results."""
@@ -157,7 +160,13 @@ def run(
 
         resolved_run_id = run_id or _default_run_id(adapter)
         ctx = make_run_context(
-            run_id=resolved_run_id, output_root=output, adapter=adapter, model=model
+            run_id=resolved_run_id,
+            output_root=output,
+            adapter=adapter,
+            model=model,
+            no_judge=no_judge,
+            judge_model=judge_model,
+            judge_samples=judge_samples,
         )
         report = run_dataset(
             specs,
@@ -262,6 +271,15 @@ def list_adapters() -> None:
         return
     for name, target in sorted(adapters.items()):
         console.print(f"[bold]{name}[/bold]  [dim]{target}[/dim]")
+
+
+@list_app.command("detectors")
+def list_detectors() -> None:
+    """List dependency-coverage detectors."""
+    from reforge.scoring.dependency import available_detectors
+
+    for name in available_detectors():
+        console.print(f"[bold]{name}[/bold]")
 
 
 class _NullContainer:

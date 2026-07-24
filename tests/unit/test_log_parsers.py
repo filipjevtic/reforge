@@ -5,6 +5,7 @@ from __future__ import annotations
 from reforge.scoring.log_parsers import (
     TestStatus,
     match_status,
+    parse_go_json,
     parse_junit_xml,
 )
 
@@ -42,3 +43,18 @@ def test_match_suffix() -> None:
 def test_match_missing_returns_none() -> None:
     results = parse_junit_xml(JUNIT)
     assert match_status("test_calc.py::nope", results) is None
+
+
+GO_JSON = """{"Action":"run","Package":"calc","Test":"TestAdd"}
+{"Action":"pass","Package":"calc","Test":"TestAdd"}
+{"Action":"run","Package":"calc","Test":"TestBroken"}
+{"Action":"fail","Package":"calc","Test":"TestBroken"}
+"""
+
+
+def test_parse_go_json() -> None:
+    results = parse_go_json(GO_JSON)
+    by_id = {r.nodeid: r.status for r in results}
+    assert by_id["calc::TestAdd"] is TestStatus.passed
+    assert by_id["calc::TestBroken"] is TestStatus.failed
+    assert match_status("TestAdd", results) is TestStatus.passed

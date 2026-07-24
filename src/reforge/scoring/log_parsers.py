@@ -46,6 +46,30 @@ def parse_junit_xml(xml_text: str) -> list[TestCaseResult]:
     return results
 
 
+def parse_go_json(text: str) -> list[TestCaseResult]:
+    """Parse ``go test -json`` output (one JSON object per line)."""
+    import json
+
+    status_map = {"pass": TestStatus.passed, "fail": TestStatus.failed, "skip": TestStatus.skipped}
+    latest: dict[str, TestStatus] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        test = event.get("Test")
+        action = event.get("Action")
+        if not test or action not in status_map:
+            continue
+        pkg = event.get("Package", "")
+        nodeid = f"{pkg}::{test}" if pkg else test
+        latest[nodeid] = status_map[action]
+    return [TestCaseResult(nodeid, status) for nodeid, status in latest.items()]
+
+
 def _status_for(case: ElementTree.Element) -> TestStatus:
     if case.find("error") is not None:
         return TestStatus.error

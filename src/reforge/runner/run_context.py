@@ -16,6 +16,7 @@ class RunContext:
     model: str | None
     no_judge: bool = False
     judge_model: str | None = None
+    judge_samples: int = 1
 
     def task_dir(self, task_id: str) -> Path:
         path = self.run_dir / "tasks" / task_id
@@ -39,6 +40,7 @@ def make_run_context(
     model: str | None,
     no_judge: bool = False,
     judge_model: str | None = None,
+    judge_samples: int = 1,
 ) -> RunContext:
     run_dir = output_root / run_id
     (run_dir / "tasks").mkdir(parents=True, exist_ok=True)
@@ -49,4 +51,5 @@ def make_run_context(
         model=model,
         no_judge=no_judge,
         judge_model=judge_model,
+        judge_samples=judge_samples,
     )

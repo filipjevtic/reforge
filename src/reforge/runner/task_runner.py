@@ -39,6 +39,7 @@ def run_task(
     network_override: str | None = None,
     no_cache: bool = False,
     adapter_config: dict[str, object] | None = None,
+    judge_limiter: object | None = None,
 ) -> TaskResult:
     """Execute a single task and return its result. Never raises for task-level
     failures are captured in the returned :class:`TaskResult`."""
@@ -113,6 +114,20 @@ def run_task(
         test_result = TestScorer().score(scoring_ctx)
         subscores[test_result.key] = test_result
 
+        weights = spec.scoring.weights
+        if weights.dependency_coverage > 0 and not spec.dependency_coverage.is_empty():
+            from reforge.scoring.dependency import DependencyScorer
+
+            subscores["dependency_coverage"] = DependencyScorer().score(scoring_ctx)
+
+        judge_model_used = None
+        if weights.judge > 0 and not ctx.no_judge and not spec.rubric.is_empty():
+            judge = _make_judge(ctx, judge_limiter, tlog)
+            if judge is not None:
+                judge_result = judge.score(scoring_ctx)
+                subscores["judge"] = judge_result
+                judge_model_used = judge_result.detail.get("judge_model")
+
         score = compose(spec, subscores)
         result.resolved = score.resolved
         result.final_score = score.final_score
@@ -130,6 +145,7 @@ def run_task(
             image_tag=image_tag,
             image_digest=image_digest,
             source_ref=source_ref,
+            judge_model=judge_model_used,
         )
         result.artifacts = {
             "patch": "prediction.patch",
@@ -148,6 +164,27 @@ def run_task(
 
     (task_out / "result.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
     return result
+
+
+DEFAULT_JUDGE_MODEL = "claude-sonnet-4-6"
+
+
+def _make_judge(ctx: RunContext, limiter: object | None, tlog: object):  # type: ignore[no-untyped-def]
+    """Build a judge scorer, or return None if credentials/SDK are unavailable."""
+    from reforge.llm.client import make_client
+    from reforge.llm.ratelimit import RateLimiter
+    from reforge.scoring.judge import JudgeScorer
+    from reforge.utils.errors import ReforgeError
+
+    model = ctx.judge_model or DEFAULT_JUDGE_MODEL
+    try:
+        client = make_client(model)
+    except ReforgeError as exc:
+        tlog.warning("judge_disabled", reason=str(exc))  # type: ignore[attr-defined]
+        return None
+    samples = int(ctx.judge_samples)
+    rl = limiter if isinstance(limiter, RateLimiter) else None
+    return JudgeScorer(client, samples=samples, limiter=rl)
 
 
 def _adapter_config(spec: TaskSpec) -> dict[str, object]:

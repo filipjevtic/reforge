@@ -40,6 +40,11 @@ def run_dataset(
     results: list[TaskResult] = []
     concurrency = max(1, concurrency)
 
+    # One shared limiter so judge calls across parallel tasks don't burst.
+    from reforge.llm.ratelimit import RateLimiter
+
+    judge_limiter = RateLimiter(calls_per_minute=60.0)
+
     def _run(spec: TaskSpec) -> TaskResult:
         return run_task(
             spec,
@@ -48,6 +53,7 @@ def run_dataset(
             network_override=network_override,
             no_cache=no_cache,
             adapter_config=adapter_config,
+            judge_limiter=judge_limiter,
         )
 
     tracker = _Progress(len(specs), enabled=progress)
