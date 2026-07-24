@@ -1,8 +1,10 @@
 """Token-to-cost accounting from a small, editable pricing table.
 
-Prices are USD per million tokens (input, output). The table is intentionally
-simple and local; update it as prices change. Unknown models cost 0 and are
-flagged so a run never crashes just because a price is missing.
+Prices are USD per million tokens (input, output). They are approximate and can
+go stale; treat reported costs as estimates and verify against current provider
+pricing for anything that matters. The table is intentionally simple and local;
+update it as prices change. Unknown models cost 0 and are flagged (``known=False``)
+so a run never crashes just because a price is missing.
 """
 
 from __future__ import annotations

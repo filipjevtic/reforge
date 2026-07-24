@@ -89,8 +89,15 @@ def run_task(
             logger=tlog,
             timeout_s=spec.resources.agent_timeout_s,
         )
-        adapter.validate(adapter_input)
-        agent_result = adapter.run(adapter_input)
+        try:
+            adapter.validate(adapter_input)
+            agent_result = adapter.run(adapter_input)
+        except ReforgeError:
+            raise
+        except Exception as exc:
+            # A provider error, dropped connection, or adapter bug must fail only
+            # this task, with a clear label, never the whole run.
+            raise ReforgeError(f"agent adapter '{ctx.adapter}' failed: {exc}") from exc
         result.agent_success = agent_result.success
         result.tokens = TokenCounts(
             input=agent_result.token_usage.input_tokens,
@@ -119,18 +126,26 @@ def run_task(
         if weights.dependency_coverage > 0 and not spec.dependency_coverage.is_empty():
             from reforge.scoring.dependency import DependencyScorer
 
-            subscores["dependency_coverage"] = DependencyScorer().score(scoring_ctx)
+            # A detector bug shouldn't sink a task; degrade to tests-only scoring.
+            try:
+                subscores["dependency_coverage"] = DependencyScorer().score(scoring_ctx)
+            except Exception as exc:
+                tlog.warning("dependency_scorer_failed", error=str(exc))
 
         judge_model_used = None
         if weights.judge > 0 and not ctx.no_judge and not spec.rubric.is_empty():
             judge = _make_judge(ctx, judge_limiter, tlog)
             if judge is not None:
-                judge_result = judge.score(scoring_ctx)
-                subscores["judge"] = judge_result
-                judge_model_used = judge_result.detail.get("judge_model")
-                judge_cost = judge_result.detail.get("cost_usd")
-                if judge_cost:
-                    result.cost_usd = (result.cost_usd or 0.0) + float(judge_cost)
+                # The judge never gates; a judge/API error just omits its subscore.
+                try:
+                    judge_result = judge.score(scoring_ctx)
+                    subscores["judge"] = judge_result
+                    judge_model_used = judge_result.detail.get("judge_model")
+                    judge_cost = judge_result.detail.get("cost_usd")
+                    if judge_cost:
+                        result.cost_usd = (result.cost_usd or 0.0) + float(judge_cost)
+                except Exception as exc:
+                    tlog.warning("judge_failed", error=str(exc))
 
         score = compose(spec, subscores)
         result.resolved = score.resolved
@@ -157,7 +172,9 @@ def run_task(
         }
         tlog.info("task_done", resolved=result.resolved, score=result.final_score)
 
-    except ReforgeError as exc:
+    except Exception as exc:
+        # run_task never raises for a task-level failure; the orchestrator relies
+        # on this so one bad task cannot abort the whole run.
         result.error = str(exc)
         tlog.error("task_failed", error=str(exc))
     finally:
