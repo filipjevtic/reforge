@@ -100,8 +100,11 @@ class DockerContainerHandle(ContainerHandle):
         buffer = io.BytesIO()
         with tarfile.open(fileobj=buffer, mode="w") as tar:
             if src.is_dir():
-                for child in sorted(src.rglob("*")):
-                    tar.add(child, arcname=child.relative_to(src).as_posix())
+                # Add each top-level entry once; tarfile.add recurses into dirs.
+                # (Walking rglob + add would double-add nested files and emit
+                # duplicate directory entries, which some Docker backends mishandle.)
+                for child in sorted(src.iterdir()):
+                    tar.add(child, arcname=child.name)
             else:
                 tar.add(src, arcname=src.name)
         buffer.seek(0)
