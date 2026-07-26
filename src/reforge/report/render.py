@@ -48,11 +48,11 @@ def render_markdown(report: RunReport) -> str:
             "| Model | $/task | Resolved rate | Mean score | Pareto |",
             "| --- | ---: | ---: | ---: | :---: |",
         ]
-        for r in sorted(cq, key=lambda r: r.mean_cost_usd or 0.0):
-            mark = "frontier" if r.on_frontier else "dominated"
+        for cr in sorted(cq, key=lambda row: row.mean_cost_usd or 0.0):
+            mark = "frontier" if cr.on_frontier else "dominated"
             lines.append(
-                f"| {r.model or r.adapter} | {r.mean_cost_usd or 0.0:.4f} "
-                f"| {r.resolved_rate:.0%} | {r.mean_final_score:.3f} | {mark} |"
+                f"| {cr.model or cr.adapter} | {cr.mean_cost_usd or 0.0:.4f} "
+                f"| {cr.resolved_rate:.0%} | {cr.mean_final_score:.3f} | {mark} |"
             )
     lines += [
         "",
