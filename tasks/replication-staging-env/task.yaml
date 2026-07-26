@@ -1,6 +1,7 @@
 schema_version: 1
 id: replication-staging-env
 category: replication
+tags: [devops, docker-compose]
 title: "Create a staging environment that mirrors production"
 description: >
   A replication task: the repo defines prod and dev environments under

@@ -33,6 +33,7 @@ class Provenance(BaseModel):
 class TaskResult(BaseModel):
     task_id: str
     category: str
+    tags: list[str] = Field(default_factory=list)
     adapter: str
     model: str | None = None
 

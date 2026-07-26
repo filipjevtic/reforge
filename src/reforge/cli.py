@@ -6,6 +6,7 @@ import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
@@ -13,6 +14,9 @@ from rich.console import Console
 from reforge import __version__
 from reforge.utils.errors import ReforgeError
 from reforge.utils.logging import configure
+
+if TYPE_CHECKING:
+    from reforge.spec.models import TaskSpec
 
 app = typer.Typer(
     add_completion=False,
@@ -141,6 +145,10 @@ def run(
     max_cost_usd: float | None = typer.Option(
         None, "--max-cost-usd", help="Stop launching tasks once spend reaches this budget."
     ),
+    category: str | None = typer.Option(
+        None, "--category", help="Only run tasks in this category."
+    ),
+    tag: list[str] = typer.Option(None, "--tag", help="Only run tasks having all these tags."),
     fmt: str = typer.Option("table", "--format", help="Report format: table|markdown|json."),
 ) -> None:
     """Run an adapter against a task or dataset and score the results."""
@@ -163,6 +171,10 @@ def run(
         else:
             specs = [load_task(task)]  # type: ignore[arg-type]
             dataset_name = str(task)
+
+        specs = _filter_specs(specs, category, tag)
+        if not specs:
+            _fail("no tasks matched the given --category/--tag filters")
 
         runtime = make_runtime(runtime_name)
         if not runtime.is_available():
@@ -348,6 +360,18 @@ class _NullContainer:
 
     def stop(self) -> None:
         return None
+
+
+def _filter_specs(
+    specs: list[TaskSpec], category: str | None, tags: list[str] | None
+) -> list[TaskSpec]:
+    """Keep specs matching the category and having all requested tags."""
+    if category:
+        specs = [s for s in specs if s.category == category]
+    if tags:
+        wanted = set(tags)
+        specs = [s for s in specs if wanted <= set(s.tags)]
+    return specs
 
 
 def _parse_config(config: str | None) -> dict[str, object]:
