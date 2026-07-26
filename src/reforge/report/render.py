@@ -2,15 +2,31 @@
 
 from __future__ import annotations
 
+import json
+
 from rich.console import Console
 from rich.table import Table
 
 from reforge.report.models import LeaderboardRow, RunReport
 from reforge.report.stats import two_proportion_pvalue
 
+#: Version of the shareable leaderboard export format (``render_leaderboard_json``).
+LEADERBOARD_SCHEMA = "reforge-leaderboard/v1"
+
 
 def render_json(report: RunReport) -> str:
     return report.model_dump_json(indent=2)
+
+
+def render_leaderboard_json(report: RunReport) -> str:
+    """A stable, shareable leaderboard-only export (rows plus a small envelope)."""
+    payload = {
+        "schema": LEADERBOARD_SCHEMA,
+        "tool_version": report.tool_version,
+        "dataset": report.dataset,
+        "rows": [row.model_dump() for row in report.leaderboard],
+    }
+    return json.dumps(payload, indent=2)
 
 
 def _fmt_rate_ci(row: LeaderboardRow) -> str:

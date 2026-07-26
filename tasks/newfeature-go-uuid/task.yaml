@@ -1,0 +1,55 @@
+schema_version: 1
+id: newfeature-go-uuid
+category: app-feature
+tags: [go]
+title: "Add a UUID-based id generator that reuses google/uuid"
+description: >
+  A Go new-feature task. The repo has a main package; the agent must add an id.go
+  file with a NewID() function that returns a UUID string, reusing the
+  github.com/google/uuid package rather than hand-rolling one. Scoring parses the
+  produced file, and the dependency-coverage scorer (go_imports) confirms the uuid
+  package was actually imported.
+
+instruction: |
+  Add a file id.go in the same package as main.go. It must define a function
+  NewID() string that returns a newly generated UUID as a string, using the
+  github.com/google/uuid package (uuid.New().String()). Do not hand-roll id
+  generation.
+
+source:
+  type: local
+  path: src
+  strip_git: true
+
+environment:
+  dockerfile: Dockerfile
+  workdir: /workspace
+
+verification:
+  entrypoint: verifier/run_tests.sh
+  framework: pytest
+  fail_to_pass:
+    - "test_id.py::test_id_module"
+  pass_to_pass: []
+  timeout_s: 120
+
+dependency_coverage:
+  required:
+    imports:
+      - github.com/google/uuid
+  detectors:
+    - type: go_imports
+      scope: "*.go"
+
+scoring:
+  weights:
+    tests: 0.7
+    dependency_coverage: 0.3
+  gate:
+    require_pass_to_pass: true
+
+resources:
+  cpus: 1
+  memory: "1g"
+  network: none
+  agent_timeout_s: 300

@@ -193,8 +193,9 @@ that ship today:
   Python adapter at all.
 
 Adapters are discovered through Python entry points, so a third-party adapter is
-just a package you `pip install`. `reforge list adapters` shows what's installed,
-and `reforge adapter-check --adapter <name>` preflights its credentials. See
+just a package you `pip install`. `reforge new-adapter <name>` scaffolds that package
+for you; `reforge list adapters` shows what's installed, and
+`reforge adapter-check --adapter <name>` preflights its credentials. See
 [docs/adapter-authoring.md](docs/adapter-authoring.md).
 
 Pick the model with `--model`, and pass adapter-specific options as JSON with
