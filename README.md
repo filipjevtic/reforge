@@ -99,6 +99,25 @@ Two more controls matter when the models cost money and sometimes flake:
 - `--max-cost-usd N` stops launching tasks once the run's spend reaches your
   budget, so a large dataset against a frontier model can't run away with the bill.
 
+## Project config and CI gating
+
+Put run defaults in a `reforge.toml` (or a `[tool.reforge]` table in
+`pyproject.toml`) so runs aren't flag-soup. Flags override the file; the file
+overrides built-in defaults:
+
+```toml
+# reforge.toml
+adapter = "api-agent"
+model = "claude-sonnet-4-6"
+judge_model = "claude-sonnet-4-6"
+concurrency = 4
+fail_under = 0.8
+```
+
+`reforge run --fail-under 0.8` exits non-zero (code 2) if the resolved rate is
+below the threshold, so you can wire reforge into CI as an adoption gate: does
+this model clear our bar on our own tasks?
+
 ## Datasets and runtimes
 
 `--dataset` takes a local directory or a HuggingFace dataset repo of reforge task

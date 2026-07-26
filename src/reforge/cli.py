@@ -6,7 +6,7 @@ import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 import typer
 from rich.console import Console
@@ -48,7 +48,7 @@ def _main(
     configure(level=level, json_logs=json_logs)
 
 
-def _fail(message: str) -> None:
+def _fail(message: str) -> NoReturn:
     err_console.print(f"[red]error:[/red] {message}")
     raise typer.Exit(code=1)
 
@@ -123,19 +123,19 @@ def verify_gold(
 
 @app.command()
 def run(
-    adapter: str = typer.Option(..., "--adapter", "-a", help="Agent adapter name."),
+    adapter: str | None = typer.Option(None, "--adapter", "-a", help="Agent adapter name."),
     dataset: str | None = typer.Option(
         None, "--dataset", help="Dataset directory, or hf:owner/repo for a HuggingFace dataset."
     ),
     task: Path | None = typer.Option(None, "--task", help="A single task directory."),
     model: str | None = typer.Option(None, "--model", "-m", help="Model id for the adapter."),
     run_id: str | None = typer.Option(None, "--run-id", help="Name for this run."),
-    concurrency: int = typer.Option(1, "--concurrency", "-j", help="Parallel task workers."),
-    runtime_name: str = typer.Option(
-        "docker", "--runtime", help="Container runtime: docker|podman."
+    concurrency: int | None = typer.Option(None, "--concurrency", "-j", help="Parallel workers."),
+    runtime_name: str | None = typer.Option(
+        None, "--runtime", help="Container runtime: docker|podman."
     ),
     network: str | None = typer.Option(None, "--network", help="Override container network."),
-    output: Path = typer.Option(Path("runs"), "--output", help="Where run dirs are written."),
+    output: Path | None = typer.Option(None, "--output", help="Where run dirs are written."),
     no_cache: bool = typer.Option(False, "--no-cache", help="Rebuild images from scratch."),
     config: str | None = typer.Option(None, "--config", help="Adapter config as a JSON object."),
     no_judge: bool = typer.Option(False, "--no-judge", help="Skip the LLM judge (deterministic)."),
@@ -145,6 +145,9 @@ def run(
     max_cost_usd: float | None = typer.Option(
         None, "--max-cost-usd", help="Stop launching tasks once spend reaches this budget."
     ),
+    fail_under: float | None = typer.Option(
+        None, "--fail-under", help="Exit non-zero if the resolved rate is below this (0..1)."
+    ),
     category: str | None = typer.Option(
         None, "--category", help="Only run tasks in this category."
     ),
@@ -152,6 +155,7 @@ def run(
     fmt: str = typer.Option("table", "--format", help="Report format: table|markdown|json."),
 ) -> None:
     """Run an adapter against a task or dataset and score the results."""
+    from reforge.config import load_project_config
     from reforge.dataset import resolve_dataset_source
     from reforge.report.render import render_json, render_markdown, render_table
     from reforge.runner.orchestrator import run_dataset
@@ -161,6 +165,20 @@ def run(
 
     if bool(dataset) == bool(task):
         _fail("provide exactly one of --dataset or --task")
+
+    # Flags override reforge.toml, which overrides built-in defaults.
+    cfg = load_project_config()
+    adapter = adapter or cfg.get("adapter")
+    if not adapter:
+        _fail("provide --adapter (or set adapter in reforge.toml)")
+    model = model or cfg.get("model")
+    judge_model = judge_model or cfg.get("judge_model")
+    runtime_name = runtime_name or cfg.get("runtime", "docker")
+    network = network or cfg.get("network")
+    concurrency = concurrency if concurrency is not None else int(cfg.get("concurrency", 1))
+    output = output or Path(cfg.get("output", "runs"))
+    max_cost_usd = max_cost_usd if max_cost_usd is not None else cfg.get("max_cost_usd")
+    fail_under = fail_under if fail_under is not None else cfg.get("fail_under")
 
     adapter_config = _parse_config(config)
 
@@ -214,6 +232,15 @@ def run(
     else:
         render_table(report, console)
     console.print(f"\nrun written to [bold]{ctx.run_dir}[/bold]")
+
+    if fail_under is not None:
+        total = len(report.results)
+        rate = sum(1 for r in report.results if r.resolved) / total if total else 0.0
+        if rate < fail_under:
+            err_console.print(
+                f"[red]resolved rate {rate:.0%} is below --fail-under {fail_under:.0%}[/red]"
+            )
+        raise typer.Exit(code=0 if rate >= fail_under else 2)
 
 
 @app.command()
