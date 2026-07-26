@@ -75,11 +75,13 @@ def run_task(
         task_env = _resolve_task_env(spec, requested_env, tlog)
 
         limits = ResourceLimits.from_spec(spec.resources, network_override)
+        egress_hosts = spec.environment.allowed_hosts or None
         container = runtime.run_container(
             image=image_tag,
             workdir=spec.environment.workdir,
             limits=limits,
             env=task_env or None,
+            egress_hosts=egress_hosts,
         )
 
         # Place the source into the container and snapshot a base commit.
@@ -130,7 +132,11 @@ def run_task(
         # result can only come from the diff actually solving the task.
         workdir = spec.environment.workdir
         verify_container = runtime.run_container(
-            image=image_tag, workdir=workdir, limits=limits, env=task_env or None
+            image=image_tag,
+            workdir=workdir,
+            limits=limits,
+            env=task_env or None,
+            egress_hosts=egress_hosts,
         )
         container.stop()
         container = verify_container

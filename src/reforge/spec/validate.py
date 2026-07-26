@@ -46,4 +46,11 @@ def validate_task(spec: TaskSpec) -> list[str]:
     if weights.get("judge", 0) > 0 and spec.rubric.is_empty():
         problems.append("scoring.weights.judge > 0 but rubric.criteria is empty")
 
+    # An egress allowlist does nothing without a network; catch the silent no-op.
+    if spec.environment.allowed_hosts and spec.resources.network.value == "none":
+        problems.append(
+            "environment.allowed_hosts is set but resources.network is 'none'; "
+            "set a network (e.g. bridge) for the allowlist to take effect"
+        )
+
     return problems

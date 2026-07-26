@@ -43,6 +43,19 @@ credentials or data you care about. If a task needs network access (for example 
 install packages at build time), grant it deliberately with `--network` rather
 than leaving it on for every task.
 
+## Egress allowlists
+
+A task that needs the network but only for specific hosts can set
+`environment.allowed_hosts` (domain suffixes, e.g. `pypi.org`). When the network is
+enabled, reforge then attaches the task to an internal-only network whose sole route
+out is a small filtering proxy; the task reaches only the allowlisted hosts and
+everything else is refused. The task has no other interface, so it cannot bypass the
+filter. The proxy runs in its own hardened sidecar (all capabilities dropped,
+no-new-privileges) and is torn down with the task.
+
+This narrows the blast radius but is not a substitute for running on an isolated host:
+it filters by hostname, not by what travels over an allowed connection.
+
 ## Credentialed tasks
 
 Some tasks (cloud infra, for example) need real credentials. reforge forwards a
