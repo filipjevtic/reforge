@@ -5,6 +5,8 @@ All notable changes to reforge are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-26
+
 ### Security
 - Verification now runs in a fresh container from the task image with only the
   agent's captured diff replayed onto clean source, so a reward-hacking agent can
