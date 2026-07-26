@@ -50,7 +50,8 @@ def run_task(
 
     result = TaskResult(
         task_id=spec.id,
-        category=spec.category.value,
+        category=spec.category,
+        tags=list(spec.tags),
         adapter=ctx.adapter,
         model=ctx.model,
     )

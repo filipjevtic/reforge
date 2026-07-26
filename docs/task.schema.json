@@ -1,14 +1,5 @@
 {
   "$defs": {
-    "Category": {
-      "description": "What kind of work the task asks the agent to do.",
-      "enum": [
-        "replication",
-        "new_feature"
-      ],
-      "title": "Category",
-      "type": "string"
-    },
     "Context": {
       "additionalProperties": false,
       "description": "What the agent may see. Hidden paths are removed before the agent runs.",
@@ -465,7 +456,10 @@
   "description": "A single benchmark task, parsed from ``task.yaml``.",
   "properties": {
     "category": {
-      "$ref": "#/$defs/Category"
+      "description": "Free-form domain label, e.g. replication, devops, cloud-infra.",
+      "minLength": 1,
+      "title": "Category",
+      "type": "string"
     },
     "context": {
       "$ref": "#/$defs/Context"
@@ -509,6 +503,14 @@
     },
     "source": {
       "$ref": "#/$defs/Source"
+    },
+    "tags": {
+      "description": "Cross-cutting labels for filtering.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
     },
     "task_dir": {
       "default": ".",

@@ -1,6 +1,7 @@
 schema_version: 1
 id: newfeature-analytics
 category: new_feature
+tags: [python, app-feature]
 title: "Add an analytics module over internal events data"
 description: >
   A net-new feature task with no prior analytics code in the repo. The agent must

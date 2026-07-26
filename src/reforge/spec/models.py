@@ -21,11 +21,9 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class Category(StrEnum):
-    """What kind of work the task asks the agent to do."""
-
-    replication = "replication"
-    new_feature = "new_feature"
+# Suggested categories; `category` is free-form so any domain (cloud-infra,
+# devops, ai-dev, app-feature, ...) is first-class without a code change.
+SUGGESTED_CATEGORIES = ("replication", "new_feature")
 
 
 class SourceType(StrEnum):
@@ -193,7 +191,11 @@ class TaskSpec(_Model):
 
     schema_version: int = SCHEMA_VERSION
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]*$")
-    category: Category
+    category: str = Field(
+        min_length=1,
+        description="Free-form domain label, e.g. replication, devops, cloud-infra.",
+    )
+    tags: list[str] = Field(default_factory=list, description="Cross-cutting labels for filtering.")
     title: str
     description: str = ""
 

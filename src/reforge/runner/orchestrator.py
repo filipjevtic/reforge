@@ -68,7 +68,8 @@ def run_dataset(
             log.error("task_crashed", task=spec.id, error=str(exc))
             return TaskResult(
                 task_id=spec.id,
-                category=spec.category.value,
+                category=spec.category,
+                tags=list(spec.tags),
                 adapter=ctx.adapter,
                 model=ctx.model,
                 error=f"unexpected: {exc}",

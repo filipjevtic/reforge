@@ -18,7 +18,8 @@ my-task/
 
 ## The two categories
 
-Every task declares a `category`:
+Every task declares a free-form `category` and optional `tags`. `category` is any
+label you like; common ones are:
 
 - **`replication`**: reproduce something that already exists in the codebase.
   These lean on `dependency_coverage`. You list the services, config keys, and
@@ -27,7 +28,12 @@ Every task declares a `category`:
 - **`new_feature`**: build something new. These lean on `fail_to_pass` tests and
   the judge rubric.
 
-The schema is the same for both. What differs is which blocks you fill in.
+Nothing stops you from using `cloud-infra`, `devops`, `ai-dev`, or your own label,
+since the domain is really defined by your Dockerfile, verifier, and detectors.
+`tags` are cross-cutting labels (`[terraform, aws]`); `reforge run --category X`
+and `--tag Y` filter a dataset down to a subset.
+
+The schema is the same for every category. What differs is which blocks you fill in.
 
 ## Minimal task.yaml
 
