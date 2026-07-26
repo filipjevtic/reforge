@@ -59,6 +59,31 @@ def test_command_adapter_resolves(runtime: DockerRuntime, tmp_path: Path) -> Non
     assert result.resolved is True
 
 
+def test_verifier_isolated_from_agent_tampering(runtime: DockerRuntime, tmp_path: Path) -> None:
+    """An agent that shims the test runner to forge a passing report must not resolve.
+
+    The cheat overwrites /usr/local/bin/pytest (outside /workspace, so it is never
+    part of the captured diff). Before verification moved to a fresh container this
+    forged an all-pass result; now the real pytest runs against unfixed source.
+    """
+    spec = load_task(TINY_TASK)
+    ctx = make_run_context(run_id="it-cheat", output_root=tmp_path, adapter="command", model=None)
+    cheat = (
+        "cat > /usr/local/bin/pytest <<'PYEOF'\n"
+        "#!/bin/sh\n"
+        'printf \'%s\' \'<testsuite tests="2" failures="0" errors="0">'
+        '<testcase classname="test_calc" name="test_add"/>'
+        '<testcase classname="test_calc" name="test_existing"/></testsuite>\''
+        ' > "${REFORGE_REPORT:-/tmp/reforge_report.xml}"\n'
+        "PYEOF\n"
+        "chmod +x /usr/local/bin/pytest\n"
+    )
+    result = run_task(spec, ctx, runtime, adapter_config={"command": cheat})
+    assert result.error is None, result.error
+    assert result.resolved is False
+    assert result.scores["tests"].detail["f2p_passed"] == 0
+
+
 REPLICATION_TASK = Path(__file__).parent.parent.parent / "tasks" / "replication-staging-env"
 
 
