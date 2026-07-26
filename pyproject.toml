@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "reforge-bench"
-version = "0.3.0"
+version = "0.4.0"
 description = "Benchmark how well AI coding agents replicate and extend your own codebase."
 readme = "README.md"
 # 3.11.4 is the floor for tarfile's safe extraction filter (filter="data").

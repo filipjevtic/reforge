@@ -1,3 +1,3 @@
 """reforge: benchmark AI coding agents against your own codebase."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
