@@ -12,11 +12,13 @@ flowchart TD
     ORCH -->|per task| TR[task runner]
     TR --> WS[workspace: resolve + prepare source]
     TR --> IMG[runtime: build image]
-    TR --> CON[runtime: start container]
+    TR --> CON[runtime: start agent container]
     CON --> BASE[snapshot base commit]
     BASE --> AGENT[adapter: run the agent]
-    AGENT --> DIFF[capture git diff]
-    DIFF --> INJ[inject verifier + held-out tests]
+    AGENT --> DIFF[capture git diff = prediction]
+    DIFF --> FRESH[runtime: fresh verify container]
+    FRESH --> REPLAY[replay diff onto clean source]
+    REPLAY --> INJ[inject verifier + held-out tests]
     INJ --> SCORE[scoring: tests + deps + judge]
     SCORE --> COMPOSE[compose weighted score]
     COMPOSE --> RESULT[result.json]
@@ -31,34 +33,42 @@ reaches around a layer to touch Docker or the model directly.
 | Package | Responsibility |
 | --- | --- |
 | `spec` | Parse and validate a task directory into a `TaskSpec`. |
-| `dataset` | Load collections of tasks (local dirs today, HuggingFace later). |
+| `dataset` | Load collections of tasks (a local dir, or `hf:owner/repo` from HuggingFace). |
 | `workspace` | Resolve the source code (git, local, tarball) and prepare a clean copy. |
-| `runtime` | Build images, run containers, exec commands, copy files. |
+| `runtime` | Build images, run containers, exec commands, copy files, and set up an egress proxy when a task allowlists hosts. |
 | `adapters` | Drive one agent inside a container. Pluggable via entry points. |
 | `runner` | Run a single task's lifecycle, and orchestrate a whole dataset. |
 | `scoring` | Turn a finished run into sub-scores and a final score. |
-| `report` | Aggregate results and render them. |
+| `report` | Aggregate results, add confidence intervals and pass@k, and render them. |
 
-## Why the diff is captured before the tests appear
+## How the harness stays honest
 
-The single most important ordering rule in the harness:
+Two rules keep an agent from gaming its own score.
 
 ```mermaid
 sequenceDiagram
     participant R as task runner
-    participant C as container
+    participant AC as agent container
     participant A as adapter
-    R->>C: copy source, snapshot base commit
+    participant VC as fresh verify container
+    R->>AC: copy source, snapshot base commit
     R->>A: run agent
-    A->>C: edit files in /workspace
-    R->>C: git diff  (this is the prediction)
-    R->>C: NOW inject verifier + held-out tests
-    R->>C: run tests
+    A->>AC: edit files in /workspace
+    R->>AC: git diff  (this is the prediction)
+    R->>VC: start clean container, replay diff onto source
+    R->>VC: inject verifier + held-out tests
+    R->>VC: run tests
 ```
 
-The agent never sees the tests it will be graded against, and the tests never end
-up in the captured diff. This is what stops a task from being gamed by an agent
-that edits or deletes the tests.
+First, the diff is captured before any test material exists, so the agent never
+sees the tests it will be graded against and the tests never land in the diff.
+
+Second, verification runs in a **fresh container**, not the one the agent worked
+in. The agent had root in its own container, so it could have shimmed the test
+runner, dropped a `sitecustomize.py` on the path, or pre-written the report. None
+of that survives: reforge starts a clean container from the task image, replays
+only the captured diff onto a clean copy of the source, and runs the tests there.
+A passing score can therefore only come from the diff actually solving the task.
 
 ## Scoring
 
@@ -92,7 +102,12 @@ regardless of the other numbers.
 Every task runs in its own container: no network by default, all capabilities
 dropped, `no-new-privileges`, and CPU/memory/PID limits from the task spec. The
 source is always a copy, and the Docker socket is never mounted into a task
-container. See [SECURITY.md](../SECURITY.md).
+container.
+
+A task that needs the network for only a few hosts can set
+`environment.allowed_hosts`. reforge then puts the task on an internal-only network
+whose sole route out is a small filtering proxy, so the task reaches those hosts and
+nothing else. See [SECURITY.md](../SECURITY.md).
 
 ## Reproducibility
 

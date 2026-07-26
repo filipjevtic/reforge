@@ -4,6 +4,10 @@ An adapter drives one agent inside a task container. It's the only place that kn
 how a particular agent is invoked, so supporting a new tool or model means writing
 a small class rather than touching the harness.
 
+The fastest start is `reforge new-adapter my-agent`, which scaffolds a
+pip-installable package already wired to the entry-point group described below; fill
+in `run()` and you have a working adapter.
+
 ## The contract
 
 Implement `AgentAdapter` from `reforge.adapters.base`:

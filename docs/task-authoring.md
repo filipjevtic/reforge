@@ -71,10 +71,12 @@ regenerate with `reforge schema --output docs/task.schema.json`.
 
 ## The verifier contract
 
-`verifier/run_tests.sh` runs inside the container after the agent's diff has been
-captured. It must:
+`verifier/run_tests.sh` runs after the agent's diff has been captured, in a fresh
+container built from the task image with that diff replayed onto a clean copy of the
+source (so nothing the agent left behind in its own container can affect grading).
+It must:
 
-1. Run the test framework against the workspace (with the agent's changes).
+1. Run the test framework against the workspace (which now has the agent's changes).
 2. Write a JUnit XML report to the path in `$REFORGE_REPORT`.
 
 The tiny task's script is a good template:
@@ -87,9 +89,12 @@ PYTHONPATH=/workspace pytest test_calc.py \
   --junitxml="${REFORGE_REPORT:-/tmp/reforge_report.xml}" -o junit_family=xunit2
 ```
 
-Test ids in `fail_to_pass` / `pass_to_pass` are matched leniently against the
-report, so `test_calc.py::test_add` matches whether the runner reports it with or
-without the `.py` and rootdir prefix.
+Test ids in `fail_to_pass` / `pass_to_pass` are matched against the report across
+rootdir and directory-prefix drift, so `test_calc.py::test_add` matches whether or
+not the runner reports the `.py` or a leading path. A qualified id still has to
+agree on both the module and the test name, so a same-named test in a different
+module never matches by accident; a bare `test_add` matches only when exactly one
+test in the report carries that name.
 
 ## Dependency coverage (replication tasks)
 
@@ -133,6 +138,20 @@ For tasks that need real credentials, list the host env var names under
 `environment.allowed_env` (values never go in task.yaml). They reach the container
 only when the run also passes `--env-passthrough KEY`. See
 [SECURITY.md](../SECURITY.md).
+
+For tasks that need the network but only for a few hosts, set a network and list the
+allowed domains under `environment.allowed_hosts`:
+
+```yaml
+environment:
+  allowed_hosts: [pypi.org, files.pythonhosted.org]
+resources:
+  network: bridge
+```
+
+reforge routes the task through a filtering proxy that permits those hosts (and their
+subdomains) and refuses everything else. With `network: none` the allowlist has
+nothing to act on, so `reforge validate` flags that combination.
 
 ## Validate before you run
 

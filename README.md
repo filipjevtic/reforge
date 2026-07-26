@@ -210,9 +210,11 @@ reforge run --task my-task --adapter command \
 ## A note on safety
 
 reforge runs code produced by an agent. Each task runs in its own container with
-no network by default, dropped capabilities, and CPU, memory, and PID limits. Even
-so, treat agent output as untrusted and run reforge on a disposable or isolated
-host. It never mounts your Docker socket into a task container.
+no network by default, dropped capabilities, and CPU, memory, and PID limits. A task
+that needs the network for only a few hosts can set `environment.allowed_hosts`, and
+reforge confines it to a filtering proxy that blocks everything else. Even so, treat
+agent output as untrusted and run reforge on a disposable or isolated host. It never
+mounts your Docker socket into a task container.
 
 ## Known limitations
 
