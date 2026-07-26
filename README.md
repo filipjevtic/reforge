@@ -99,6 +99,24 @@ Two more controls matter when the models cost money and sometimes flake:
 - `--max-cost-usd N` stops launching tasks once the run's spend reaches your
   budget, so a large dataset against a frontier model can't run away with the bill.
 
+### Reading the numbers
+
+The report is built to defend an adoption decision, not just rank models:
+
+- **Resolved rate comes with a 95% confidence interval** (Wilson score), shown as
+  `67% [39%-86%]`. With a handful of tasks the interval is wide on purpose: a
+  four-point lead that sits inside both intervals is noise, not a winner.
+- **`pass@k`** appears when you use `--repeats`. `pass@1` is the single-shot rate;
+  `pass@k` is the chance at least one of `k` attempts succeeds, using the unbiased
+  estimator from the HumanEval paper. A big gap between `pass@1` and `pass@k` means
+  the agent can do the task but isn't reliable.
+- **Cost vs quality** ranks models by mean dollars per task and flags which ones are
+  on the Pareto frontier. A model that is both pricier and worse than another is
+  marked *dominated*: never the right buy.
+- A **significance note** under a `--compare` board reports whether the leader's
+  resolved rate beats the runner-up (two-proportion test). Treat it as a large-sample
+  guide; the confidence intervals are the more reliable read when task counts are low.
+
 ## Project config and CI gating
 
 Put run defaults in a `reforge.toml` (or a `[tool.reforge]` table in

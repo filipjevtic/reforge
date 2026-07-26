@@ -73,3 +73,54 @@ def test_task_stats_variance() -> None:
 def test_task_stats_single_run_zero_variance() -> None:
     stats = build_task_stats([_result("a", "new_feature", True, 1.0)])
     assert stats[0].stdev_final_score == 0.0
+
+
+def test_leaderboard_has_ci_and_no_pass_at_k_without_repeats() -> None:
+    results = [
+        _result("a", "new_feature", True, 1.0),
+        _result("b", "new_feature", False, 0.0),
+        _result("c", "replication", True, 0.5),
+    ]
+    row = build_leaderboard(results)[0]
+    assert row.resolved_rate_ci is not None
+    lo, hi = row.resolved_rate_ci
+    assert lo < row.resolved_rate < hi
+    assert row.pass_at_k == {}  # no repeats
+
+
+def test_leaderboard_pass_at_k_with_repeats() -> None:
+    # One task run 3x, resolved twice -> pass@1 == 2/3, pass@3 == 1.0.
+    results = [
+        _result("a", "new_feature", True, 1.0),
+        _result("a", "new_feature", False, 0.0),
+        _result("a", "new_feature", True, 1.0),
+    ]
+    row = build_leaderboard(results)[0]
+    assert row.pass_at_k[1] == round(2 / 3, 4)
+    assert row.pass_at_k[3] == 1.0
+
+
+def _priced(task_id: str, adapter: str, model: str, resolved: bool, cost: float) -> TaskResult:
+    return TaskResult(
+        task_id=task_id,
+        category="new_feature",
+        adapter=adapter,
+        model=model,
+        resolved=resolved,
+        final_score=1.0 if resolved else 0.0,
+        cost_usd=cost,
+    )
+
+
+def test_pareto_flags_dominated_model() -> None:
+    # cheap+good model dominates an expensive+worse one.
+    results = [
+        _priced("a", "x", "cheap-good", True, 0.01),
+        _priced("b", "x", "cheap-good", True, 0.01),
+        _priced("a", "y", "pricey-bad", False, 1.00),
+        _priced("b", "y", "pricey-bad", False, 1.00),
+    ]
+    rows = {r.model: r for r in build_leaderboard(results)}
+    assert rows["cheap-good"].on_frontier is True
+    assert rows["pricey-bad"].on_frontier is False
+    assert rows["cheap-good"].mean_cost_usd == 0.01
