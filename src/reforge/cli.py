@@ -30,6 +30,57 @@ app.add_typer(list_app, name="list")
 console = Console()
 err_console = Console(stderr=True)
 
+_TASK_TEMPLATE = """schema_version: 1
+id: {id}
+category: {category}
+tags: []
+title: "TODO: one-line title"
+instruction: |
+  TODO: describe what the agent must do.
+
+source:
+  type: local
+  path: src
+  strip_git: true
+
+environment:
+  dockerfile: Dockerfile
+  workdir: /workspace
+
+verification:
+  entrypoint: verifier/run_tests.sh
+  framework: pytest
+  fail_to_pass:
+    - "test_todo.py::test_todo"
+  pass_to_pass: []
+  timeout_s: 300
+
+scoring:
+  weights: {{ tests: 1.0 }}
+
+resources:
+  cpus: 1
+  memory: "1g"
+  network: none
+"""
+
+_DOCKERFILE_TEMPLATE = """FROM python:3.12-slim
+
+RUN apt-get update \\
+    && apt-get install -y --no-install-recommends git \\
+    && rm -rf /var/lib/apt/lists/* \\
+    && pip install --no-cache-dir pytest==8.2.2
+
+WORKDIR /workspace
+"""
+
+_RUN_TESTS_TEMPLATE = """#!/bin/sh
+set -e
+cd /verifier/tests
+PYTHONPATH=/workspace pytest \\
+  --junitxml="${REFORGE_REPORT:-/tmp/reforge_report}" -o junit_family=xunit2
+"""
+
 
 def _version_callback(value: bool) -> None:
     if value:
@@ -52,6 +103,33 @@ def _main(
 def _fail(message: str) -> NoReturn:
     err_console.print(f"[red]error:[/red] {message}")
     raise typer.Exit(code=1)
+
+
+@app.command()
+def init(
+    task_id: str = typer.Argument(..., help="Task id (lowercase, dashes)."),
+    category: str = typer.Option("new_feature", "--category", help="Task category label."),
+    directory: Path = typer.Option(Path("tasks"), "--dir", help="Where to create the task dir."),
+) -> None:
+    """Scaffold a new task directory you can fill in."""
+    task_dir = directory / task_id
+    if task_dir.exists():
+        _fail(f"{task_dir} already exists")
+    (task_dir / "src").mkdir(parents=True)
+    (task_dir / "verifier" / "tests").mkdir(parents=True)
+    (task_dir / "gold").mkdir(parents=True)
+
+    (task_dir / "task.yaml").write_text(_TASK_TEMPLATE.format(id=task_id, category=category))
+    (task_dir / "Dockerfile").write_text(_DOCKERFILE_TEMPLATE)
+    (task_dir / "verifier" / "run_tests.sh").write_text(_RUN_TESTS_TEMPLATE)
+    (task_dir / "gold" / "solution.patch").write_text(
+        "# TODO: git diff of the reference solution\n"
+    )
+    (task_dir / "src" / ".gitkeep").write_text("")
+
+    console.print(f"[green]scaffolded[/green] {task_dir}")
+    console.print("Next: add source under src/, write the verifier and gold/solution.patch, then")
+    console.print(f"  reforge validate {task_dir} && reforge verify-gold {task_dir}")
 
 
 @app.command()

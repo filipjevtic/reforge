@@ -1,0 +1,13 @@
+diff --git a/s3.tf b/s3.tf
+new file mode 100644
+index 0000000..074481a
+--- /dev/null
++++ b/s3.tf
+@@ -0,0 +1,7 @@
++resource "aws_s3_bucket" "app_data" {
++  bucket = local.bucket_name
++
++  tags = {
++    Environment = var.environment
++  }
++}
