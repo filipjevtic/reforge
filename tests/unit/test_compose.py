@@ -37,15 +37,25 @@ def test_weights_normalized_over_active_scorers() -> None:
     spec = load_task(TINY_TASK)
     spec = spec.model_copy(
         update={
-            "scoring": spec.scoring.model_copy(
-                update={
-                    "weights": spec.scoring.weights.model_copy(
-                        update={"tests": 0.5, "dependency_coverage": 0.0, "judge": 0.5}
-                    )
-                }
-            )
+            "scoring": spec.scoring.model_copy(update={"weights": {"tests": 0.5, "judge": 0.5}})
         }
     )
     result = compose(spec, {"tests": _tests_result(0.6, True, False)})
     assert result.weights_used == {"tests": 1.0}
     assert result.final_score == 0.6
+
+
+def test_extra_scorer_key_composes() -> None:
+    # An arbitrary (plugin) scorer key with a weight is composed like any other.
+    spec = load_task(TINY_TASK)
+    spec = spec.model_copy(
+        update={
+            "scoring": spec.scoring.model_copy(update={"weights": {"tests": 0.5, "security": 0.5}})
+        }
+    )
+    results = {
+        "tests": _tests_result(1.0, True, True),
+        "security": ScorerResult(key="security", score=0.4, passed=True, detail={}),
+    }
+    result = compose(spec, results)
+    assert result.final_score == round(0.5 * 1.0 + 0.5 * 0.4, 4)

@@ -327,11 +327,22 @@ def list_adapters() -> None:
 
 @list_app.command("detectors")
 def list_detectors() -> None:
-    """List dependency-coverage detectors."""
+    """List dependency-coverage detectors (built-in + entry-point plugins)."""
     from reforge.scoring.dependency import available_detectors
 
     for name in available_detectors():
         console.print(f"[bold]{name}[/bold]")
+
+
+@list_app.command("scorers")
+def list_scorers() -> None:
+    """List scorers: the built-in three plus any entry-point plugins."""
+    from reforge.scoring.registry import BUILTIN_KEYS, available_scorers
+
+    for name in sorted(BUILTIN_KEYS):
+        console.print(f"[bold]{name}[/bold]  [dim](built-in)[/dim]")
+    for name, target in sorted(available_scorers().items()):
+        console.print(f"[bold]{name}[/bold]  [dim]{target}[/dim]")
 
 
 class _NullContainer:

@@ -39,11 +39,11 @@ def validate_task(spec: TaskSpec) -> list[str]:
 
     # Guard against weights that reference a scorer the task never configured.
     weights = spec.scoring.weights
-    if weights.dependency_coverage > 0 and spec.dependency_coverage.is_empty():
+    if weights.get("dependency_coverage", 0) > 0 and spec.dependency_coverage.is_empty():
         problems.append(
             "scoring.weights.dependency_coverage > 0 but dependency_coverage.required is empty"
         )
-    if weights.judge > 0 and spec.rubric.is_empty():
+    if weights.get("judge", 0) > 0 and spec.rubric.is_empty():
         problems.append("scoring.weights.judge > 0 but rubric.criteria is empty")
 
     return problems

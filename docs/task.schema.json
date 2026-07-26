@@ -268,7 +268,11 @@
           "$ref": "#/$defs/ScoringGate"
         },
         "weights": {
-          "$ref": "#/$defs/ScoringWeights"
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Weights",
+          "type": "object"
         }
       },
       "title": "Scoring",
@@ -284,31 +288,6 @@
         }
       },
       "title": "ScoringGate",
-      "type": "object"
-    },
-    "ScoringWeights": {
-      "additionalProperties": false,
-      "properties": {
-        "dependency_coverage": {
-          "default": 0.25,
-          "minimum": 0,
-          "title": "Dependency Coverage",
-          "type": "number"
-        },
-        "judge": {
-          "default": 0.25,
-          "minimum": 0,
-          "title": "Judge",
-          "type": "number"
-        },
-        "tests": {
-          "default": 0.5,
-          "minimum": 0,
-          "title": "Tests",
-          "type": "number"
-        }
-      },
-      "title": "ScoringWeights",
       "type": "object"
     },
     "Source": {

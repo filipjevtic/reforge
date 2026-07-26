@@ -77,3 +77,36 @@ examples. To sanity-check yours end to end, point it at the tiny task:
 ```bash
 reforge run --task tests/fixtures/tiny-task --adapter my-agent --model <model>
 ```
+
+## Detectors and scorers
+
+Two more plugin points work the same way, through entry points, so you never fork
+reforge to extend scoring.
+
+**Detectors** feed the dependency-coverage scorer. A detector is a function
+`(files: dict[str, str]) -> set[str]` that returns the dependency tokens it finds.
+Built-ins cover Python, env vars, Terraform, docker-compose/k8s, JS/TS and Go
+imports, and package manifests; `reforge list detectors` shows them all. Register
+your own:
+
+```toml
+[project.entry-points."reforge.detectors"]
+my_refs = "my_package.detectors:detect_my_refs"
+```
+
+Reference it from a task with `dependency_coverage.detectors: [{type: my_refs}]`.
+
+**Scorers** add a whole scoring dimension. Implement `Scorer` (from
+`reforge.scoring.base`), returning a `ScorerResult` with a normalized 0..1 score,
+and register it:
+
+```toml
+[project.entry-points."reforge.scorers"]
+security = "my_package.scorers:SecurityScorer"
+```
+
+A task opts in by giving the scorer's key a weight, e.g.
+`scoring.weights: {tests: 0.7, security: 0.3}`. reforge runs it alongside the
+built-ins and composes the weighted result; `reforge list scorers` shows what's
+installed. The three built-in keys (`tests`, `dependency_coverage`, `judge`) are
+reserved.
