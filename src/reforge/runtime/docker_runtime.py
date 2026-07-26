@@ -31,6 +31,8 @@ log = get_logger("runtime.docker")
 
 # Cap captured output per exec so a runaway agent cannot exhaust memory.
 _MAX_CAPTURE_BYTES = 8 * 1024 * 1024
+# Cap what is written to a trace file so a chatty agent cannot fill the host disk.
+_MAX_STREAM_BYTES = 64 * 1024 * 1024
 
 
 def _root_owned(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo:
@@ -92,11 +94,19 @@ class DockerContainerHandle(ContainerHandle):
             else nullcontext(stream_to)
         )
         with sink_ctx as sink:
+            sink_bytes = 0
+            sink_truncated = False
             for chunk in stream:
+                # Always drain the stream so the exec completes, even once caps hit.
                 if len(captured) < _MAX_CAPTURE_BYTES:
                     captured.extend(chunk)
-                if sink is not None:
-                    sink.write(chunk.decode("utf-8", errors="replace"))
+                if sink is not None and not sink_truncated:
+                    if sink_bytes + len(chunk) > _MAX_STREAM_BYTES:
+                        sink.write("\n...[trace truncated: output exceeded cap]\n")
+                        sink_truncated = True
+                    else:
+                        sink.write(chunk.decode("utf-8", errors="replace"))
+                        sink_bytes += len(chunk)
 
         info = api.exec_inspect(exec_id)
         exit_code = info.get("ExitCode")

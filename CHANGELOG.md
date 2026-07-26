@@ -5,6 +5,15 @@ All notable changes to reforge are recorded here. This project follows
 
 ## [Unreleased]
 
+### Security
+- Git sources reject transport helpers (`ext::`, `fd::`) and option-like
+  repo/ref values.
+- Provider API keys / bearer tokens are redacted from persisted task error text.
+- Agent adapters pass the model via an environment variable instead of
+  interpolating it into the shell command.
+- Task containers set a `nofile` ulimit and trace files are capped so a chatty
+  agent cannot fill the host disk.
+
 ## [0.3.0] - 2026-07-26
 
 ### Security

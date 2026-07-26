@@ -27,7 +27,7 @@ from reforge.scoring.base import ScorerResult, TaskScoringContext
 from reforge.scoring.compose import compose
 from reforge.scoring.tests import VERIFIER_DIR_IN_CONTAINER, TestScorer
 from reforge.spec.models import TaskSpec
-from reforge.utils.errors import ReforgeError
+from reforge.utils.errors import ReforgeError, redact_secrets
 from reforge.utils.logging import get_logger
 
 log = get_logger("runner.task")
@@ -204,8 +204,8 @@ def run_task(
     except Exception as exc:
         # run_task never raises for a task-level failure; the orchestrator relies
         # on this so one bad task cannot abort the whole run.
-        result.error = str(exc)
-        tlog.error("task_failed", error=str(exc))
+        result.error = redact_secrets(str(exc))
+        tlog.error("task_failed", error=result.error)
     finally:
         result.duration_s = round(time.monotonic() - started, 2)
         if container is not None:

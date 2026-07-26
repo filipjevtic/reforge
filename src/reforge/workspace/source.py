@@ -64,9 +64,21 @@ def _resolve_local(spec: TaskSpec, dest: Path) -> None:
     return None
 
 
+_SAFE_GIT_SCHEMES = ("https://", "http://", "git://", "ssh://", "file://")
+
+
+def _check_git_source(repo: str, ref: str) -> None:
+    """Reject git transport helpers (ext::, fd::) and option-like repo/ref values."""
+    if "::" in repo and not repo.startswith(_SAFE_GIT_SCHEMES):
+        raise SourceError(f"unsupported git repo URL (transport helper blocked): {repo}")
+    if repo.startswith("-") or ref.startswith("-"):
+        raise SourceError(f"invalid git repo/ref: {repo}@{ref}")
+
+
 def _resolve_git(spec: TaskSpec, dest: Path) -> str:
     repo, ref = spec.source.repo, spec.source.ref
     assert repo is not None and ref is not None
+    _check_git_source(repo, ref)
     try:
         subprocess.run(
             ["git", "clone", "--no-checkout", repo, str(dest)],

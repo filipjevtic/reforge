@@ -76,6 +76,16 @@ def test_subdir_traversal_rejected(tmp_path: Path) -> None:
         prepare_workspace(spec, tmp_path / "ws")
 
 
+def test_git_transport_helper_rejected(tmp_path: Path) -> None:
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    spec = _spec(Source(type="git", repo="ext::sh -c touch&/tmp/pwned", ref="HEAD")).with_dir(
+        task_dir
+    )
+    with pytest.raises(SourceError, match="transport helper"):
+        prepare_workspace(spec, tmp_path / "ws")
+
+
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
 def test_git_source_pins_to_sha(tmp_path: Path) -> None:
     repo = tmp_path / "repo"

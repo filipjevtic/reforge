@@ -30,10 +30,12 @@ class ClaudeCodeAdapter(AgentAdapter):
         env["ANTHROPIC_API_KEY"] = os.environ.get("ANTHROPIC_API_KEY", "")
         env["REFORGE_INSTRUCTION"] = input.instruction
 
-        # Wrap in sh so $REFORGE_INSTRUCTION expands and quoting is safe.
+        # Wrap in sh so the values expand from the environment and quoting is safe;
+        # never interpolate instruction/model into the command string directly.
         shell_cmd = 'claude -p "$REFORGE_INSTRUCTION" --dangerously-skip-permissions'
         if input.model:
-            shell_cmd += f" --model {input.model}"
+            env["REFORGE_MODEL"] = input.model
+            shell_cmd += ' --model "$REFORGE_MODEL"'
 
         merged = dataclasses.replace(input, env=env)
         return run_cli(merged, ["sh", "-c", shell_cmd], metadata={"model": input.model or ""})

@@ -34,15 +34,19 @@ class ResourceLimits:
 
     def to_docker_kwargs(self, *, with_disk_quota: bool = True) -> dict[str, object]:
         """Map limits onto docker-py ``containers.run``/``create`` keyword args."""
+        from docker.types import Ulimit
+
         # nano_cpus is CPU count expressed in billionths of a CPU.
         kwargs: dict[str, object] = {
             "nano_cpus": int(self.cpus * 1_000_000_000),
             "mem_limit": self.memory,
             "pids_limit": self.pids,
             "network_mode": self.network,
-            # Defense in depth: drop all capabilities and block privilege escalation.
+            # Defense in depth: drop all capabilities, block privilege escalation, and
+            # cap open file descriptors (pids_limit already caps processes).
             "cap_drop": ["ALL"],
             "security_opt": ["no-new-privileges"],
+            "ulimits": [Ulimit(name="nofile", soft=4096, hard=8192)],
         }
         # storage_opt size requires a quota-capable storage driver (overlay2 on
         # xfs with pquota, or btrfs). It is best-effort; the runtime retries
