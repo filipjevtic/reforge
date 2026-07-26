@@ -5,6 +5,7 @@ from __future__ import annotations
 import statistics
 
 from reforge.report.models import LeaderboardRow, TaskResult, TaskStat
+from reforge.report.stats import pareto_frontier, pass_at_k, wilson_interval
 
 
 def build_task_stats(results: list[TaskResult]) -> list[TaskStat]:
@@ -39,6 +40,12 @@ def build_leaderboard(results: list[TaskResult]) -> list[LeaderboardRow]:
 
     rows = [_summarize(adapter, model, rs) for (adapter, model), rs in groups.items()]
     rows.sort(key=lambda row: (row.resolved_rate, row.mean_final_score), reverse=True)
+
+    # Pareto frontier is a cross-row property, so mark it once the rows exist.
+    if len(rows) > 1:
+        flags = pareto_frontier([(row.mean_cost_usd or 0.0, row.resolved_rate) for row in rows])
+        for row, on_frontier in zip(rows, flags, strict=True):
+            row.on_frontier = on_frontier
     return rows
 
 
@@ -64,6 +71,8 @@ def _summarize(adapter: str, model: str | None, rs: list[TaskResult]) -> Leaderb
     ]
     mean_dep = round(sum(dep_scores) / len(dep_scores), 4) if dep_scores else None
 
+    total_cost = round(sum(r.cost_usd or 0.0 for r in rs), 4)
+
     return LeaderboardRow(
         adapter=adapter,
         model=model,
@@ -73,6 +82,29 @@ def _summarize(adapter: str, model: str | None, rs: list[TaskResult]) -> Leaderb
         mean_final_score=round(mean_final, 4),
         by_category=by_category,
         mean_dep_coverage=mean_dep,
-        total_cost_usd=round(sum(r.cost_usd or 0.0 for r in rs), 4),
+        total_cost_usd=total_cost,
         mean_duration_s=round(sum(r.duration_s for r in rs) / n, 2) if n else 0.0,
+        resolved_rate_ci=wilson_interval(resolved, n) if n else None,
+        pass_at_k=_pass_at_k_over_tasks(rs),
+        mean_cost_usd=round(total_cost / n, 6) if n else None,
     )
+
+
+def _pass_at_k_over_tasks(rs: list[TaskResult]) -> dict[int, float]:
+    """pass@k averaged over tasks, for k in 1..max repeats. Empty unless repeated.
+
+    Each task contributes ``pass_at_k(n_attempts, n_resolved, k)``; the row value is
+    the mean across tasks. Only meaningful when at least one task was run more than
+    once, so an unrepeated run returns ``{}``.
+    """
+    by_task: dict[str, list[TaskResult]] = {}
+    for r in rs:
+        by_task.setdefault(r.task_id, []).append(r)
+    max_n = max((len(v) for v in by_task.values()), default=0)
+    if max_n <= 1:
+        return {}
+    out: dict[int, float] = {}
+    for k in range(1, max_n + 1):
+        per_task = [pass_at_k(len(v), sum(1 for r in v if r.resolved), k) for v in by_task.values()]
+        out[k] = round(sum(per_task) / len(per_task), 4) if per_task else 0.0
+    return out

@@ -5,6 +5,13 @@ All notable changes to reforge are recorded here. This project follows
 
 ## [Unreleased]
 
+### Added
+- Decision-grade reporting: `resolved_rate` now carries a Wilson 95% confidence
+  interval, `pass@k` is reported when `--repeats > 1`, `report --compare` prints a
+  cost/quality Pareto table (mean $/task, dominated vs on-frontier) and a
+  two-proportion significance note for the top two models. Existing `report.json`
+  files gain these on re-render, no re-run needed.
+
 ### Security
 - Git sources reject transport helpers (`ext::`, `fd::`) and option-like
   repo/ref values.

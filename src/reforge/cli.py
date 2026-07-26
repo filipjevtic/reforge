@@ -351,6 +351,7 @@ def report(
             tool_version=parsed.tool_version,
             dataset=parsed.dataset,
             adapter="(multiple)",
+            repeats=max((rep.repeats for rep in reports), default=1),
             results=combined,
             leaderboard=build_leaderboard(combined),
             task_stats=build_task_stats(combined),
@@ -361,6 +362,10 @@ def report(
             render_comparison(merged, console)
         return
 
+    # Re-aggregate from the stored results so confidence intervals and pass@k are
+    # present even for a report.json produced before those fields existed.
+    parsed.leaderboard = build_leaderboard(parsed.results)
+    parsed.task_stats = build_task_stats(parsed.results)
     if fmt == "json":
         console.print_json(render_json(parsed))
     elif fmt == "markdown":

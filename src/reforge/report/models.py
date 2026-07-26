@@ -65,6 +65,12 @@ class LeaderboardRow(BaseModel):
     total_cost_usd: float = 0.0
     mean_duration_s: float = 0.0
 
+    # Decision-grade extras (defaulted so older report.json still validates).
+    resolved_rate_ci: tuple[float, float] | None = None
+    pass_at_k: dict[int, float] = Field(default_factory=dict)  # populated when repeats > 1
+    mean_cost_usd: float | None = None  # per task-run; comparable across runs
+    on_frontier: bool = True  # cost/quality Pareto frontier membership
+
 
 class TaskStat(BaseModel):
     """Per-task aggregation across repeated runs (variance signal)."""
