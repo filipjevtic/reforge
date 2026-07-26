@@ -1,8 +1,11 @@
 """Run one task end to end: prepare, build, agent, capture, verify, score.
 
-This mirrors SWE-bench's per-instance lifecycle. The important ordering rule: the
-agent's diff is captured *before* the verifier and held-out tests are injected, so
-an agent can never see or modify the tests it is graded against.
+This mirrors SWE-bench's per-instance lifecycle. Two rules keep scoring honest:
+the agent's diff is captured *before* any test material is injected, so the agent
+never sees the tests it is graded against; and verification then runs in a *fresh*
+container with only that diff replayed onto clean source, so nothing the agent
+planted in its own container (a shimmed test runner, a sitecustomize.py on
+PYTHONPATH, a pre-written report) can forge a passing result.
 """
 
 from __future__ import annotations
@@ -117,15 +120,29 @@ def run_task(
 
         # Capture the diff BEFORE any test material touches the container.
         diff = _capture_diff(container, spec.environment.workdir, base_sha)
-        (task_out / "prediction.patch").write_text(diff, encoding="utf-8")
+        patch_path = task_out / "prediction.patch"
+        patch_path.write_text(diff, encoding="utf-8")
 
-        # Inject the verifier and run the scorers.
+        # Verify in a FRESH container from the task image, with the agent's diff
+        # replayed onto clean source. The agent had root in its own container and
+        # could have shimmed pytest, dropped a sitecustomize.py on PYTHONPATH, or
+        # pre-written the report; none of that carries over here, so a passing
+        # result can only come from the diff actually solving the task.
+        workdir = spec.environment.workdir
+        verify_container = runtime.run_container(
+            image=image_tag, workdir=workdir, limits=limits, env=task_env or None
+        )
+        container.stop()
+        container = verify_container
+        container.exec(["mkdir", "-p", workdir])
+        container.copy_in(workspace_tmp / "src", workdir)
+        _apply_diff(container, workdir, patch_path, diff)
         _inject_verifier(container, spec)
         scoring_ctx = TaskScoringContext(
             spec=spec,
             container=container,
             diff=diff,
-            workspace_path=spec.environment.workdir,
+            workspace_path=workdir,
         )
         subscores = {}
         test_result = TestScorer().score(scoring_ctx)
@@ -281,6 +298,17 @@ def _capture_diff(container: ContainerHandle, workdir: str, base_sha: str) -> st
     )
     res = container.exec(["sh", "-c", script], workdir=workdir)
     return res.output
+
+
+def _apply_diff(container: ContainerHandle, workdir: str, patch_path: Path, diff: str) -> None:
+    """Replay the agent's captured diff onto clean source in the verify container."""
+    if not diff.strip():
+        return  # empty diff (e.g. the noop adapter): clean source stands as-is
+    container.copy_in(patch_path, "/tmp")
+    script = f"cd {workdir} && git apply --whitespace=nowarn /tmp/{patch_path.name}"
+    res = container.exec(["sh", "-c", script])
+    if not res.ok:
+        raise ReforgeError(f"could not replay agent diff for verification: {res.output}")
 
 
 def _inject_verifier(container: ContainerHandle, spec: TaskSpec) -> None:
