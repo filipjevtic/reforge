@@ -5,6 +5,14 @@ All notable changes to reforge are recorded here. This project follows
 
 ## [Unreleased]
 
+### Added
+- Free-form task `category` plus `tags`, with `run --category`/`--tag` filters.
+- Pluggable scorers (`reforge.scorers`) and detectors (`reforge.detectors`) via
+  entry points; `scoring.weights` is now keyed by scorer name.
+- New built-in detectors: `k8s_refs`, `js_imports`, `go_imports`, `package_manifests`.
+- Project config via `reforge.toml` / `[tool.reforge]`; `run --fail-under` exit
+  code for CI adoption gating. `reforge list scorers`.
+
 ## [0.1.1] - 2026-07-24
 
 ### Added
