@@ -24,8 +24,6 @@ if TYPE_CHECKING:
 class TokenUsage:
     input_tokens: int = 0
     output_tokens: int = 0
-    cache_read_tokens: int = 0
-    cache_write_tokens: int = 0
 
     def total(self) -> int:
         return self.input_tokens + self.output_tokens

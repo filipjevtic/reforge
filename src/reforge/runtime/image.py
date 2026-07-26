@@ -9,7 +9,6 @@ twice at once.
 from __future__ import annotations
 
 import threading
-from pathlib import Path
 
 from reforge.runtime.base import ContainerRuntime
 from reforge.spec.models import TaskSpec
@@ -55,9 +54,4 @@ def build_task_image(
         return tag, digest
 
 
-def _reset_cache_for_tests() -> None:
-    _digest_cache.clear()
-
-
-# Re-exported for callers that only need the location.
-__all__ = ["Path", "build_task_image", "image_tag"]
+__all__ = ["build_task_image", "image_tag"]

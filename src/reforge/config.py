@@ -12,20 +12,6 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="REFORGE_", env_file=".env", extra="ignore")
-
-    output_root: Path = Field(default=Path("runs"))
-    default_network: str = Field(default="none")
-
-
-def get_settings() -> Settings:
-    return Settings()
-
 
 def load_project_config(start: Path | None = None) -> dict[str, Any]:
     """Read run defaults from reforge.toml or pyproject's [tool.reforge]."""

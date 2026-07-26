@@ -7,16 +7,12 @@ module captures that shape so a CLI-backed adapter is a few lines.
 
 from __future__ import annotations
 
-import shutil
-
 from reforge.adapters.base import AdapterInput, AdapterResult
 from reforge.utils.errors import AdapterError
 
 
 def require_binary(input: AdapterInput, binary: str) -> None:
     """Raise AdapterError if ``binary`` is not on PATH inside the container."""
-    if shutil.which("sh") is None:  # host sanity; cheap and avoids surprises
-        pass
     check = input.container.exec(["sh", "-c", f"command -v {binary} >/dev/null 2>&1"])
     if not check.ok:
         raise AdapterError(

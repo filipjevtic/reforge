@@ -14,6 +14,11 @@ All notable changes to reforge are recorded here. This project follows
   labeled untrusted data the judge must not follow).
 - `source.subdir` is rejected if it escapes the source root.
 
+### Removed
+- Dead code: unused `Settings`/`get_settings` (drops the `pydantic-settings`
+  dependency), the reserved no-op `verify-gold --keep-container` flag, and other
+  unreferenced helpers/fields.
+
 ### Fixed
 - Test-id matching no longer credits a bare `test_add` to a qualified
   `pkg.mod::test_add`, and the `.py` strip is extension-anchored.

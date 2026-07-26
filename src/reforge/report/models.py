@@ -84,7 +84,6 @@ class RunReport(BaseModel):
     dataset: str
     adapter: str
     model: str | None = None
-    created_at: str | None = None
     repeats: int = 1
     budget_usd: float | None = None
     total_cost_usd: float = 0.0
