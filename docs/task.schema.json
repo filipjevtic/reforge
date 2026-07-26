@@ -73,6 +73,14 @@
           "title": "Allowed Env",
           "type": "array"
         },
+        "allowed_hosts": {
+          "description": "Egress allowlist (domain suffixes). When set and the network is not 'none', the task reaches only these hosts, via a filtering proxy; all else is blocked.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Hosts",
+          "type": "array"
+        },
         "build_args": {
           "additionalProperties": {
             "type": "string"
