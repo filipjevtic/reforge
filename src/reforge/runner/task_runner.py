@@ -10,6 +10,7 @@ from __future__ import annotations
 import tempfile
 import time
 from pathlib import Path
+from typing import Any
 
 from reforge import __version__
 from reforge.adapters.base import AdapterInput
@@ -19,7 +20,7 @@ from reforge.runner.run_context import RunContext
 from reforge.runtime.base import ContainerHandle, ContainerRuntime
 from reforge.runtime.image import build_task_image
 from reforge.runtime.limits import ResourceLimits
-from reforge.scoring.base import TaskScoringContext
+from reforge.scoring.base import ScorerResult, TaskScoringContext
 from reforge.scoring.compose import compose
 from reforge.scoring.tests import VERIFIER_DIR_IN_CONTAINER, TestScorer
 from reforge.spec.models import TaskSpec
@@ -124,7 +125,7 @@ def run_task(
         subscores[test_result.key] = test_result
 
         weights = spec.scoring.weights
-        if weights.dependency_coverage > 0 and not spec.dependency_coverage.is_empty():
+        if weights.get("dependency_coverage", 0) > 0 and not spec.dependency_coverage.is_empty():
             from reforge.scoring.dependency import DependencyScorer
 
             # A detector bug shouldn't sink a task; degrade to tests-only scoring.
@@ -134,7 +135,7 @@ def run_task(
                 tlog.warning("dependency_scorer_failed", error=str(exc))
 
         judge_model_used = None
-        if weights.judge > 0 and not ctx.no_judge and not spec.rubric.is_empty():
+        if weights.get("judge", 0) > 0 and not ctx.no_judge and not spec.rubric.is_empty():
             judge = _make_judge(ctx, judge_limiter, tlog)
             if judge is not None:
                 # The judge never gates; a judge/API error just omits its subscore.
@@ -147,6 +148,9 @@ def run_task(
                         result.cost_usd = (result.cost_usd or 0.0) + float(judge_cost)
                 except Exception as exc:
                     tlog.warning("judge_failed", error=str(exc))
+
+        # Registered third-party scorers (entry-point group reforge.scorers).
+        _run_extra_scorers(spec, weights, scoring_ctx, subscores, tlog)
 
         score = compose(spec, subscores)
         result.resolved = score.resolved
@@ -207,6 +211,25 @@ def _make_judge(ctx: RunContext, limiter: object | None, tlog: object):  # type:
     samples = int(ctx.judge_samples)
     rl = limiter if isinstance(limiter, RateLimiter) else None
     return JudgeScorer(client, samples=samples, limiter=rl)
+
+
+def _run_extra_scorers(
+    spec: TaskSpec,
+    weights: dict[str, float],
+    scoring_ctx: TaskScoringContext,
+    subscores: dict[str, ScorerResult],
+    tlog: Any,
+) -> None:
+    """Run registered plugin scorers the task opted into (weight > 0)."""
+    from reforge.scoring.registry import load_extra_scorers
+
+    for scorer in load_extra_scorers():
+        if scorer.key in subscores or weights.get(scorer.key, 0) <= 0:
+            continue
+        try:
+            subscores[scorer.key] = scorer.score(scoring_ctx)
+        except Exception as exc:
+            tlog.warning("scorer_failed", scorer=scorer.key, error=str(exc))
 
 
 def _adapter_config(spec: TaskSpec) -> dict[str, object]:

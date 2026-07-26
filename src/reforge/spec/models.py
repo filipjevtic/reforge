@@ -154,16 +154,7 @@ class Rubric(_Model):
         return not self.criteria
 
 
-class ScoringWeights(_Model):
-    tests: float = Field(default=0.5, ge=0)
-    dependency_coverage: float = Field(default=0.25, ge=0)
-    judge: float = Field(default=0.25, ge=0)
-
-    @model_validator(mode="after")
-    def _check_positive_sum(self) -> ScoringWeights:
-        if self.tests + self.dependency_coverage + self.judge <= 0:
-            raise ValueError("scoring.weights must sum to a positive number")
-        return self
+DEFAULT_WEIGHTS = {"tests": 0.5, "dependency_coverage": 0.25, "judge": 0.25}
 
 
 class ScoringGate(_Model):
@@ -171,8 +162,18 @@ class ScoringGate(_Model):
 
 
 class Scoring(_Model):
-    weights: ScoringWeights = Field(default_factory=ScoringWeights)
+    # Keys are scorer names ("tests", "dependency_coverage", "judge", or any
+    # registered scorer). Same YAML shape as before, now open to plugin scorers.
+    weights: dict[str, float] = Field(default_factory=lambda: dict(DEFAULT_WEIGHTS))
     gate: ScoringGate = Field(default_factory=ScoringGate)
+
+    @model_validator(mode="after")
+    def _check_weights(self) -> Scoring:
+        if any(w < 0 for w in self.weights.values()):
+            raise ValueError("scoring.weights values must be >= 0")
+        if sum(self.weights.values()) <= 0:
+            raise ValueError("scoring.weights must sum to a positive number")
+        return self
 
 
 class Resources(_Model):

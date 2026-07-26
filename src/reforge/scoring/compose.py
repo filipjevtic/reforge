@@ -24,11 +24,7 @@ class TaskScore:
 
 
 def compose(spec: TaskSpec, results: dict[str, ScorerResult]) -> TaskScore:
-    weights_cfg = {
-        "tests": spec.scoring.weights.tests,
-        "dependency_coverage": spec.scoring.weights.dependency_coverage,
-        "judge": spec.scoring.weights.judge,
-    }
+    weights_cfg = spec.scoring.weights
 
     active = {k: weights_cfg[k] for k in results if weights_cfg.get(k, 0) > 0}
     total_weight = sum(active.values())

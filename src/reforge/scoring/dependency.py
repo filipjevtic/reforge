@@ -22,6 +22,7 @@ from reforge.spec.models import RequiredDeps
 
 Detector = Callable[[dict[str, str]], set[str]]
 _REGISTRY: dict[str, Detector] = {}
+ENTRY_POINT_GROUP = "reforge.detectors"
 
 
 def register(name: str) -> Callable[[Detector], Detector]:
@@ -32,8 +33,27 @@ def register(name: str) -> Callable[[Detector], Detector]:
     return decorate
 
 
+def _entry_point_detectors() -> dict[str, str]:
+    from importlib.metadata import entry_points
+
+    return {ep.name: ep.value for ep in entry_points(group=ENTRY_POINT_GROUP)}
+
+
 def available_detectors() -> list[str]:
-    return sorted(_REGISTRY)
+    return sorted(set(_REGISTRY) | set(_entry_point_detectors()))
+
+
+def get_detector(name: str) -> Detector | None:
+    """Look up a detector by name: built-ins first, then entry-point plugins."""
+    if name in _REGISTRY:
+        return _REGISTRY[name]
+    from importlib.metadata import entry_points
+
+    for ep in entry_points(group=ENTRY_POINT_GROUP):
+        if ep.name == name:
+            fn: Detector = ep.load()
+            return fn
+    return None
 
 
 @register("python_imports")
@@ -112,6 +132,73 @@ def detect_service_deps(files: dict[str, str]) -> set[str]:
     return found
 
 
+_K8S_KIND = re.compile(r"^kind:\s*([A-Za-z0-9]+)", re.MULTILINE)
+_K8S_NAME = re.compile(r"^\s+-?\s*name:\s*([a-z0-9][a-z0-9.-]*)", re.MULTILINE)
+
+
+@register("k8s_refs")
+def detect_k8s_refs(files: dict[str, str]) -> set[str]:
+    """Kinds, names, and images from Kubernetes manifests."""
+    found: set[str] = set()
+    for path, content in files.items():
+        if not path.endswith((".yml", ".yaml")):
+            continue
+        found.update(_K8S_KIND.findall(content))
+        found.update(_K8S_NAME.findall(content))
+        for image in _IMAGE.findall(content):
+            found.add(image.rsplit("/", 1)[-1])
+    return found
+
+
+_JS_IMPORT = re.compile(r"""(?:from|require\()\s*['"]([^'"]+)['"]""")
+
+
+@register("js_imports")
+def detect_js_imports(files: dict[str, str]) -> set[str]:
+    """Modules imported/required by JS/TS files."""
+    found: set[str] = set()
+    for path, content in files.items():
+        if path.endswith((".js", ".jsx", ".ts", ".tsx", ".mjs")):
+            found.update(_JS_IMPORT.findall(content))
+    return found
+
+
+_GO_IMPORT = re.compile(r'"([a-zA-Z0-9_./-]+)"')
+
+
+@register("go_imports")
+def detect_go_imports(files: dict[str, str]) -> set[str]:
+    """Packages imported by Go files (from import lines / blocks)."""
+    found: set[str] = set()
+    for path, content in files.items():
+        if not path.endswith(".go"):
+            continue
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("import ") or (stripped and stripped[0] == '"'):
+                found.update(_GO_IMPORT.findall(stripped))
+    return found
+
+
+@register("package_manifests")
+def detect_package_manifests(files: dict[str, str]) -> set[str]:
+    """Dependency names from requirements.txt, package.json, and go.mod."""
+    found: set[str] = set()
+    for path, content in files.items():
+        base = path.rsplit("/", 1)[-1]
+        if base == "requirements.txt":
+            for line in content.splitlines():
+                name = re.split(r"[=<>!~;\[ ]", line.strip(), maxsplit=1)[0]
+                if name and not name.startswith("#"):
+                    found.add(name)
+        elif base == "package.json":
+            found.update(re.findall(r'"([^"]+)"\s*:\s*"[^"]*"', content))
+        elif base == "go.mod":
+            # Matches both `require mod vX` and indented lines in a require ( ) block.
+            found.update(re.findall(r"([a-zA-Z0-9_.-]+(?:/[a-zA-Z0-9_.-]+)+)\s+v[0-9]", content))
+    return found
+
+
 @register("grep")
 def detect_grep(files: dict[str, str]) -> set[str]:
     """Fallback: the raw concatenated text, matched by substring later."""
@@ -140,7 +227,7 @@ class DependencyScorer(Scorer):
 
         found: set[str] = set()
         for det in cfg.detectors:
-            fn = _REGISTRY.get(det.type)
+            fn = get_detector(det.type)
             if fn is None:
                 continue
             files = _read_scoped_files(ctx, det.scope)
