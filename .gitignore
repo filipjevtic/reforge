@@ -34,3 +34,6 @@ runs/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local agent transcripts
+2026-*-local-command-*.txt
