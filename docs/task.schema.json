@@ -65,6 +65,14 @@
       "additionalProperties": false,
       "description": "The container image the task runs in.",
       "properties": {
+        "allowed_env": {
+          "description": "Host env vars this task accepts (only if also passed via --env-passthrough).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Env",
+          "type": "array"
+        },
         "build_args": {
           "additionalProperties": {
             "type": "string"

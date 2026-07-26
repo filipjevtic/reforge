@@ -12,6 +12,8 @@ All notable changes to reforge are recorded here. This project follows
 - New built-in detectors: `k8s_refs`, `js_imports`, `go_imports`, `package_manifests`.
 - Project config via `reforge.toml` / `[tool.reforge]`; `run --fail-under` exit
   code for CI adoption gating. `reforge list scorers`.
+- Credentialed tasks: `run --env-passthrough KEY` forwards a host env var into a
+  task only if the task allowlists it in `environment.allowed_env`.
 
 ## [0.1.1] - 2026-07-24
 

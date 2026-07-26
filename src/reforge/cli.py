@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -152,6 +153,11 @@ def run(
         None, "--category", help="Only run tasks in this category."
     ),
     tag: list[str] = typer.Option(None, "--tag", help="Only run tasks having all these tags."),
+    env_passthrough: list[str] = typer.Option(
+        None,
+        "--env-passthrough",
+        help="Forward this host env var into tasks that allowlist it (repeatable).",
+    ),
     fmt: str = typer.Option("table", "--format", help="Report format: table|markdown|json."),
 ) -> None:
     """Run an adapter against a task or dataset and score the results."""
@@ -181,6 +187,7 @@ def run(
     fail_under = fail_under if fail_under is not None else cfg.get("fail_under")
 
     adapter_config = _parse_config(config)
+    requested_env = {k: os.environ[k] for k in (env_passthrough or []) if k in os.environ}
 
     try:
         if dataset:
@@ -220,6 +227,7 @@ def run(
             progress=(fmt == "table"),
             repeats=repeats,
             max_cost_usd=max_cost_usd,
+            requested_env=requested_env,
         )
     except ReforgeError as exc:
         _fail(str(exc))

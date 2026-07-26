@@ -31,3 +31,14 @@ Even so, run reforge on a disposable or isolated host, not on a machine that hol
 credentials or data you care about. If a task needs network access (for example to
 install packages at build time), grant it deliberately with `--network` rather
 than leaving it on for every task.
+
+## Credentialed tasks
+
+Some tasks (cloud infra, for example) need real credentials. reforge forwards a
+host environment variable into a task only when both sides opt in: the run passes
+`--env-passthrough KEY` and the task allowlists `KEY` in `environment.allowed_env`.
+Nothing is forwarded by default, and reforge logs which variables it forwarded.
+
+Never put secret values in `task.yaml`; it only lists variable names. Give real
+credentials scoped, short-lived permissions, and run these tasks on an isolated
+host with the network they need.

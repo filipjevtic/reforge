@@ -75,6 +75,10 @@ class Environment(_Model):
     dockerfile: str = Field(default="Dockerfile", description="Path relative to the task dir.")
     build_args: dict[str, str] = Field(default_factory=dict)
     workdir: str = Field(default="/workspace")
+    allowed_env: list[str] = Field(
+        default_factory=list,
+        description="Host env vars this task accepts (only if also passed via --env-passthrough).",
+    )
 
 
 class Context(_Model):

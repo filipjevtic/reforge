@@ -41,6 +41,7 @@ def run_task(
     no_cache: bool = False,
     adapter_config: dict[str, object] | None = None,
     judge_limiter: object | None = None,
+    requested_env: dict[str, str] | None = None,
     attempt: int = 0,
 ) -> TaskResult:
     """Execute a single task and return its result. Never raises for task-level
@@ -67,9 +68,15 @@ def run_task(
 
         image_tag, image_digest = build_task_image(runtime, spec, no_cache=no_cache)
 
+        # Forward only host env vars the task allowlists AND the run passed in.
+        task_env = _resolve_task_env(spec, requested_env, tlog)
+
         limits = ResourceLimits.from_spec(spec.resources, network_override)
         container = runtime.run_container(
-            image=image_tag, workdir=spec.environment.workdir, limits=limits
+            image=image_tag,
+            workdir=spec.environment.workdir,
+            limits=limits,
+            env=task_env or None,
         )
 
         # Place the source into the container and snapshot a base commit.
@@ -211,6 +218,19 @@ def _make_judge(ctx: RunContext, limiter: object | None, tlog: object):  # type:
     samples = int(ctx.judge_samples)
     rl = limiter if isinstance(limiter, RateLimiter) else None
     return JudgeScorer(client, samples=samples, limiter=rl)
+
+
+def _resolve_task_env(
+    spec: TaskSpec, requested_env: dict[str, str] | None, tlog: Any
+) -> dict[str, str]:
+    """Env forwarded into the container: (requested via --env-passthrough) ∩ allowed_env."""
+    if not requested_env:
+        return {}
+    allowed = set(spec.environment.allowed_env)
+    env = {k: v for k, v in requested_env.items() if k in allowed}
+    if env:
+        tlog.warning("env_passthrough", keys=sorted(env))
+    return env
 
 
 def _run_extra_scorers(
