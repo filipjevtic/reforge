@@ -140,3 +140,10 @@ only when the run also passes `--env-passthrough KEY`. See
 reforge validate my-task     # schema + files exist + scoring inputs present
 reforge verify-gold my-task  # the gold solution actually resolves it
 ```
+
+If a task's tests touch anything non-deterministic (time, network, ordering), run the
+gold solution a few times to catch it before it skews a leaderboard:
+
+```bash
+reforge verify-gold my-task --repeats 5  # fails if resolution/score/tests vary
+```
