@@ -5,6 +5,8 @@ All notable changes to reforge are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-26
+
 ### Added
 - Free-form task `category` plus `tags`, with `run --category`/`--tag` filters.
 - Pluggable scorers (`reforge.scorers`) and detectors (`reforge.detectors`) via
