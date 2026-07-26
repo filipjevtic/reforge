@@ -21,11 +21,6 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-# Suggested categories; `category` is free-form so any domain (cloud-infra,
-# devops, ai-dev, app-feature, ...) is first-class without a code change.
-SUGGESTED_CATEGORIES = ("replication", "new_feature")
-
-
 class SourceType(StrEnum):
     git = "git"
     local = "local"

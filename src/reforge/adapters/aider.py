@@ -7,6 +7,7 @@ aider needs (OpenAI or Anthropic) is forwarded from the host if present.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 
 from reforge.adapters.base import AdapterInput, AdapterResult, AgentAdapter
@@ -38,15 +39,5 @@ class AiderAdapter(AgentAdapter):
         if input.model:
             shell_cmd += f" --model {input.model}"
 
-        merged = AdapterInput(
-            instruction=input.instruction,
-            workspace_path=input.workspace_path,
-            container=input.container,
-            trace_path=input.trace_path,
-            model=input.model,
-            config=input.config,
-            env=env,
-            logger=input.logger,
-            timeout_s=input.timeout_s,
-        )
+        merged = dataclasses.replace(input, env=env)
         return run_cli(merged, ["sh", "-c", shell_cmd], metadata={"model": input.model or ""})

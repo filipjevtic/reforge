@@ -164,7 +164,6 @@ def validate(
 @app.command("verify-gold")
 def verify_gold(
     task_dir: Path = typer.Argument(..., help="Task directory to self-verify."),
-    keep_container: bool = typer.Option(False, "--keep-container", help="reserved"),
 ) -> None:
     """Apply the gold solution and assert the task resolves. The self-consistency
     check every task must pass."""
@@ -527,8 +526,3 @@ def main() -> None:  # pragma: no cover - console entry indirection
 
 if __name__ == "__main__":  # pragma: no cover
     main()
-
-
-# Small helper kept for potential programmatic use / tests.
-def _dump(obj: object) -> str:
-    return json.dumps(obj, indent=2)

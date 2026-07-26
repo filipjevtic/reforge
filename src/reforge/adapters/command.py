@@ -13,6 +13,8 @@ Configure it per run with ``--config`` (JSON), e.g.::
 
 from __future__ import annotations
 
+import dataclasses
+
 from reforge.adapters.base import AdapterInput, AdapterResult, AgentAdapter
 from reforge.adapters.process import run_cli
 from reforge.utils.errors import AdapterError
@@ -35,15 +37,5 @@ class CommandAdapter(AgentAdapter):
         env["REFORGE_MODEL"] = input.model or ""
         env["REFORGE_WORKSPACE"] = input.workspace_path
 
-        merged = AdapterInput(
-            instruction=input.instruction,
-            workspace_path=input.workspace_path,
-            container=input.container,
-            trace_path=input.trace_path,
-            model=input.model,
-            config=input.config,
-            env=env,
-            logger=input.logger,
-            timeout_s=input.timeout_s,
-        )
+        merged = dataclasses.replace(input, env=env)
         return run_cli(merged, ["sh", "-c", command], metadata={"command": command})
