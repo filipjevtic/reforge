@@ -74,6 +74,13 @@ class Environment(_Model):
         default_factory=list,
         description="Host env vars this task accepts (only if also passed via --env-passthrough).",
     )
+    allowed_hosts: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Egress allowlist (domain suffixes). When set and the network is not 'none', "
+            "the task reaches only these hosts, via a filtering proxy; all else is blocked."
+        ),
+    )
 
 
 class Context(_Model):

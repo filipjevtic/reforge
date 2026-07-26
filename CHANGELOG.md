@@ -6,6 +6,9 @@ All notable changes to reforge are recorded here. This project follows
 ## [Unreleased]
 
 ### Added
+- Per-task egress allowlist: a task can set `environment.allowed_hosts`, and when the
+  network is enabled the task is confined to a filtering proxy sidecar that permits only
+  those host suffixes and blocks everything else (instead of all-or-nothing `--network`).
 - `reforge new-adapter <name>` scaffolds a pip-installable third-party adapter package
   wired to the `reforge.adapters` entry-point group.
 - Shareable leaderboard export: `report --leaderboard` (with `--output`) writes a stable

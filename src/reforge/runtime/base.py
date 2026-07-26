@@ -92,5 +92,10 @@ class ContainerRuntime(ABC):
         workdir: str,
         limits: ResourceLimits,
         env: dict[str, str] | None = None,
+        egress_hosts: list[str] | None = None,
     ) -> ContainerHandle:
-        """Start a long-lived container (sleeps) and return a handle to it."""
+        """Start a long-lived container (sleeps) and return a handle to it.
+
+        If ``egress_hosts`` is set and the network is not ``none``, the container is
+        confined to a filtering proxy that permits only those host suffixes.
+        """

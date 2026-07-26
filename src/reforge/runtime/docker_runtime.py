@@ -14,11 +14,14 @@ from __future__ import annotations
 
 import io
 import tarfile
+import uuid
 from contextlib import nullcontext
+from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, TYPE_CHECKING
 
 from reforge.runtime.base import ContainerHandle, ContainerRuntime, ExecResult
+from reforge.runtime.egress import PROXY_ALIAS, PROXY_SRC, proxy_env
 from reforge.runtime.limits import ResourceLimits
 from reforge.utils.errors import RuntimeBackendError
 from reforge.utils.logging import get_logger
@@ -26,6 +29,7 @@ from reforge.utils.logging import get_logger
 if TYPE_CHECKING:
     from docker import DockerClient
     from docker.models.containers import Container
+    from docker.models.networks import Network
 
 log = get_logger("runtime.docker")
 
@@ -51,10 +55,35 @@ def _root_owned(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo:
     return tarinfo
 
 
+@dataclass
+class _Egress:
+    """The proxy sidecar and internal network backing one task's egress allowlist."""
+
+    proxy: Container
+    network: Network
+
+    def teardown(self) -> None:
+        try:
+            self.proxy.remove(force=True)
+        except Exception as exc:  # best effort
+            log.warning("egress_proxy_remove_failed", error=str(exc))
+        try:
+            self.network.remove()
+        except Exception as exc:
+            log.warning("egress_network_remove_failed", error=str(exc))
+
+
 class DockerContainerHandle(ContainerHandle):
-    def __init__(self, client: DockerClient, container: Container) -> None:
+    def __init__(
+        self,
+        client: DockerClient,
+        container: Container,
+        *,
+        egress: _Egress | None = None,
+    ) -> None:
         self._client = client
         self._container = container
+        self._egress = egress
         self._stopped = False
 
     @property
@@ -164,6 +193,8 @@ class DockerContainerHandle(ContainerHandle):
         except Exception as exc:  # best effort; log and move on
             log.warning("container_remove_failed", container=self.id, error=str(exc))
         finally:
+            if self._egress is not None:
+                self._egress.teardown()
             self._stopped = True
 
 
@@ -233,18 +264,31 @@ class DockerRuntime(ContainerRuntime):
         workdir: str,
         limits: ResourceLimits,
         env: dict[str, str] | None = None,
+        egress_hosts: list[str] | None = None,
     ) -> ContainerHandle:
         client = self._get_client()
+        env = dict(env or {})
+
+        egress: _Egress | None = None
+        extra: dict[str, object] = {}
+        if egress_hosts and limits.network != "none":
+            egress = self._setup_egress(client, egress_hosts, limits)
+            env.update(proxy_env())
+            extra["network"] = egress.network.name  # task sees only the internal net
 
         def _start(with_disk_quota: bool):  # type: ignore[no-untyped-def]
+            kwargs = limits.to_docker_kwargs(with_disk_quota=with_disk_quota)
+            if egress is not None:
+                kwargs.pop("network_mode", None)  # network= and network_mode= conflict
             return client.containers.run(
                 image,
                 command=["sleep", "infinity"],
                 detach=True,
                 working_dir=workdir,
-                environment=env or {},
+                environment=env,
                 tty=False,
-                **limits.to_docker_kwargs(with_disk_quota=with_disk_quota),
+                **kwargs,
+                **extra,
             )
 
         try:
@@ -257,11 +301,45 @@ class DockerRuntime(ContainerRuntime):
                 try:
                     container = _start(with_disk_quota=False)
                 except Exception as exc2:
+                    if egress is not None:
+                        egress.teardown()
                     raise RuntimeBackendError(
                         f"failed to start container from {image}: {exc2}"
                     ) from exc2
             else:
+                if egress is not None:
+                    egress.teardown()
                 raise RuntimeBackendError(f"failed to start container from {image}: {exc}") from exc
 
         log.info("container_started", container=container.short_id, image=image)
-        return DockerContainerHandle(client, container)
+        return DockerContainerHandle(client, container, egress=egress)
+
+    def _setup_egress(
+        self, client: DockerClient, hosts: list[str], limits: ResourceLimits
+    ) -> _Egress:
+        """Create an internal network and a filtering proxy the task must route through."""
+        suffix = uuid.uuid4().hex[:10]
+        try:
+            # internal=True means members get NO external route; the task's only way
+            # out is the proxy, which also sits on the default bridge for its own NAT.
+            network = client.networks.create(
+                f"reforge-egress-{suffix}", driver="bridge", internal=True
+            )
+            # Proxy starts with normal (NAT) internet, then also joins the internal net
+            # under a stable alias the task uses for HTTP(S)_PROXY.
+            proxy = client.containers.run(
+                "python:3.12-slim",
+                command=["python", "-c", PROXY_SRC, *hosts],
+                name=f"reforge-proxy-{suffix}",
+                detach=True,
+                tty=False,
+                cap_drop=["ALL"],
+                security_opt=["no-new-privileges"],
+                mem_limit="256m",
+                pids_limit=128,
+            )
+            network.connect(proxy, aliases=[PROXY_ALIAS])
+        except Exception as exc:
+            raise RuntimeBackendError(f"failed to set up egress proxy: {exc}") from exc
+        log.info("egress_proxy_started", hosts=list(hosts), network=network.name)
+        return _Egress(proxy=proxy, network=network)
