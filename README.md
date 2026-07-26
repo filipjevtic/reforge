@@ -98,6 +98,9 @@ Two more controls matter when the models cost money and sometimes flake:
   pass doesn't look like a reliable one.
 - `--max-cost-usd N` stops launching tasks once the run's spend reaches your
   budget, so a large dataset against a frontier model can't run away with the bill.
+- `--resume` reuses the same `--run-id` and skips tasks already scored, so a long run
+  that stops partway (a flaky container, a rate limit, the budget) picks up where it
+  left off instead of starting over. Tasks that errored are retried.
 
 ### Reading the numbers
 

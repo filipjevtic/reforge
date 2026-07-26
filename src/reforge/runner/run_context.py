@@ -18,12 +18,20 @@ class RunContext:
     judge_model: str | None = None
     judge_samples: int = 1
 
-    def task_dir(self, task_id: str, attempt: int = 0) -> Path:
+    def _task_path(self, task_id: str, attempt: int = 0) -> Path:
         path = self.run_dir / "tasks" / task_id
         if attempt > 0:
             path = path / f"run-{attempt}"
+        return path
+
+    def task_dir(self, task_id: str, attempt: int = 0) -> Path:
+        path = self._task_path(task_id, attempt)
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    def result_file(self, task_id: str, attempt: int = 0) -> Path:
+        """Path to a task's result.json without creating the directory (for resume)."""
+        return self._task_path(task_id, attempt) / "result.json"
 
     @property
     def run_json(self) -> Path:

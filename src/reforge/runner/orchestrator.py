@@ -38,6 +38,7 @@ def run_dataset(
     repeats: int = 1,
     max_cost_usd: float | None = None,
     requested_env: dict[str, str] | None = None,
+    resume: bool = False,
 ) -> RunReport:
     _write_run_json(ctx, dataset_name, specs)
 
@@ -52,6 +53,21 @@ def run_dataset(
 
     # (spec, attempt) is the unit of work; repeats add attempts per task.
     work = [(spec, attempt) for attempt in range(repeats) for spec in specs]
+
+    spent = 0.0
+    if resume:
+        remaining: list[tuple[TaskSpec, int]] = []
+        for item in work:
+            spec, attempt = item
+            prior = _load_completed(ctx, spec.id, attempt)
+            if prior is not None:
+                results.append(prior)
+                spent += prior.cost_usd or 0.0
+            else:
+                remaining.append(item)
+        if results:
+            log.info("resume", skipped=len(results), remaining=len(remaining))
+        work = remaining
 
     def _run(item: tuple[TaskSpec, int]) -> TaskResult:
         spec, attempt = item
@@ -79,7 +95,6 @@ def run_dataset(
                 error=message,
             )
 
-    spent = 0.0
     exhausted = False
 
     def _over_budget() -> bool:
@@ -130,6 +145,22 @@ def run_dataset(
     ctx.report_json.write_text(report.model_dump_json(indent=2), encoding="utf-8")
     log.info("run_complete", run_id=ctx.run_id, results=len(results), cost=round(spent, 4))
     return report
+
+
+def _load_completed(ctx: RunContext, task_id: str, attempt: int) -> TaskResult | None:
+    """Return a previously scored result so resume can skip it, or None to (re)run.
+
+    A result that recorded an error is treated as unfinished, so a resumed run
+    retries tasks that crashed or errored rather than accepting the failure.
+    """
+    path = ctx.result_file(task_id, attempt)
+    if not path.is_file():
+        return None
+    try:
+        result = TaskResult.model_validate_json(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return result if result.error is None else None
 
 
 class _Progress:
