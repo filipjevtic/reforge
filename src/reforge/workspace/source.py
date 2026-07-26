@@ -37,7 +37,10 @@ def resolve_source(spec: TaskSpec, dest: Path) -> str | None:
 def _apply_subdir(root: Path, subdir: str) -> Path:
     if not subdir:
         return root
-    target = root / subdir
+    root_resolved = root.resolve()
+    target = (root_resolved / subdir).resolve()
+    if not target.is_relative_to(root_resolved):
+        raise SourceError(f"source.subdir escapes the source root: {subdir}")
     if not target.is_dir():
         raise SourceError(f"source.subdir not found: {subdir}")
     return target

@@ -53,6 +53,8 @@ def test_is_retryable() -> None:
     assert _is_retryable(_Status(400)) is False
     assert _is_retryable(Exception("connection reset")) is True
     assert _is_retryable(Exception("invalid api key")) is False
+    # A bare client-side timeout is NOT retried: the request may have been billed.
+    assert _is_retryable(Exception("request timed out")) is False
 
 
 def test_retries_then_succeeds() -> None:

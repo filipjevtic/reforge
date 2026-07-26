@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from reforge.spec.models import Source, TaskSpec, Verification
+from reforge.utils.errors import SourceError
 from reforge.workspace import prepare_workspace
 
 
@@ -59,6 +60,20 @@ def test_hidden_paths_removed(tmp_path: Path) -> None:
 
     assert (dest / "keep.py").exists()
     assert not (dest / "secret.txt").exists()
+
+
+def test_subdir_traversal_rejected(tmp_path: Path) -> None:
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "keep.py").write_text("x = 1\n")
+    (tmp_path / "outside").mkdir()
+    (tmp_path / "outside" / "secret.txt").write_text("nope\n")
+
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    spec = _spec(Source(type="local", path="../src", subdir="../outside")).with_dir(task_dir)
+    with pytest.raises(SourceError, match="escapes"):
+        prepare_workspace(spec, tmp_path / "ws")
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")

@@ -26,6 +26,17 @@ every run as untrusted:
 - reforge never mounts your Docker socket into a task container.
 - The verifier and its tests are injected only after the agent's changes are
   captured, so a task can't be gamed by editing the tests.
+- Verification runs in a fresh container built from the task image, with only the
+  agent's captured diff replayed onto clean source. Nothing the agent planted in
+  its own container (a shimmed test runner, a pre-written report, extra files
+  outside the workspace) carries over, so a passing score reflects the diff.
+
+One caveat for task authors: if your verifier puts the workspace on `PYTHONPATH`
+(the shipped samples do, so tests can import the agent's code), a `sitecustomize.py`
+written into the workspace is imported at interpreter startup and runs during
+verification. It is captured in `prediction.patch`, so it's auditable, but if you
+want to rule it out entirely, run the tests without the workspace on `PYTHONPATH`
+or from a directory the agent cannot write.
 
 Even so, run reforge on a disposable or isolated host, not on a machine that holds
 credentials or data you care about. If a task needs network access (for example to

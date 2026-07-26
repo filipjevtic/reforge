@@ -32,6 +32,20 @@ def test_regression_gates_to_zero() -> None:
     assert result.gated is True
 
 
+def test_gate_fails_closed_without_tests_result() -> None:
+    # tiny-task requires pass_to_pass; a run that produced no tests result cannot
+    # certify the absence of a regression, so the score is gated to zero rather
+    # than composed from the remaining scorers.
+    spec = load_task(TINY_TASK)
+    spec = spec.model_copy(
+        update={"scoring": spec.scoring.model_copy(update={"weights": {"judge": 1.0}})}
+    )
+    result = compose(spec, {"judge": ScorerResult(key="judge", score=1.0, passed=True, detail={})})
+    assert result.gated is True
+    assert result.final_score == 0.0
+    assert result.resolved is False
+
+
 def test_weights_normalized_over_active_scorers() -> None:
     # A spec whose weights include judge, but only tests ran -> tests gets full weight.
     spec = load_task(TINY_TASK)
