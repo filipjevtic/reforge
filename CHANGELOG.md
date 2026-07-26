@@ -5,6 +5,27 @@ All notable changes to reforge are recorded here. This project follows
 
 ## [Unreleased]
 
+### Security
+- Verification now runs in a fresh container from the task image with only the
+  agent's captured diff replayed onto clean source, so a reward-hacking agent can
+  no longer shim the test runner, drop a `sitecustomize.py`, or pre-write the
+  report to forge a passing result.
+- Judge prompt hardened against injection from the agent's diff (the diff is
+  labeled untrusted data the judge must not follow).
+- `source.subdir` is rejected if it escapes the source root.
+
+### Fixed
+- Test-id matching no longer credits a bare `test_add` to a qualified
+  `pkg.mod::test_add`, and the `.py` strip is extension-anchored.
+- Dependency coverage no longer counts substring matches (`s3` in
+  `aws_s3_bucket`, or a name in a comment); the `grep` detector tokenizes on word
+  boundaries.
+- The pass_to_pass regression gate fails closed when no tests result exists.
+- Client-side timeouts are no longer retried (they may already be billed).
+- The API agent returns an error to the model on a malformed tool call instead of
+  failing the whole task; the diff-capture step raises on git failure instead of
+  writing a garbage patch.
+
 ## [0.2.0] - 2026-07-26
 
 ### Added

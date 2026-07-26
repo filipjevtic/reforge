@@ -297,6 +297,8 @@ def _capture_diff(container: ContainerHandle, workdir: str, base_sha: str) -> st
         f"git add -A -f && git diff --cached {base_sha} > /tmp/reforge.diff; cat /tmp/reforge.diff"
     )
     res = container.exec(["sh", "-c", script], workdir=workdir)
+    if not res.ok:
+        raise ReforgeError(f"failed to capture the agent diff: {res.output}")
     return res.output
 
 

@@ -7,7 +7,8 @@ name = "reforge-bench"
 version = "0.2.0"
 description = "Benchmark how well AI coding agents replicate and extend your own codebase."
 readme = "README.md"
-requires-python = ">=3.11"
+# 3.11.4 is the floor for tarfile's safe extraction filter (filter="data").
+requires-python = ">=3.11.4"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "reforge contributors" }]

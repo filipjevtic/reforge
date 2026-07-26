@@ -35,11 +35,15 @@ def compose(spec: TaskSpec, results: dict[str, ScorerResult]) -> TaskScore:
     tests_result = results.get("tests")
     resolved = tests_result.passed if tests_result is not None else False
 
+    # The regression gate fails closed: if the task requires pass_to_pass but no
+    # usable tests result exists (or the flag is absent), we cannot certify the
+    # absence of a regression, so the score is gated to zero.
     gated = False
-    p2p_ok = tests_result.detail.get("pass_to_pass_ok", True) if tests_result else True
-    if spec.scoring.gate.require_pass_to_pass and tests_result is not None and not p2p_ok:
-        final = 0.0
-        gated = True
+    if spec.scoring.gate.require_pass_to_pass:
+        p2p_ok = tests_result.detail.get("pass_to_pass_ok", False) if tests_result else False
+        if not p2p_ok:
+            final = 0.0
+            gated = True
 
     return TaskScore(
         final_score=round(final, 4),

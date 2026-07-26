@@ -26,10 +26,13 @@ from reforge.utils.errors import AdapterError
 
 T = TypeVar("T")
 
+# A bare "timeout" is deliberately not retried: the server may have processed the
+# request (and billed for it) before the client gave up, so retrying double-counts
+# tokens and skews the cost metric. Server-side rejections (429/5xx, by status code
+# or message) are safe to retry because no work was done.
 _RETRYABLE_HINTS = (
     "rate limit",
     "429",
-    "timeout",
     "temporarily",
     "overloaded",
     "connection",

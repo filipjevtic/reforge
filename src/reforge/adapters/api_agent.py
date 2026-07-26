@@ -161,11 +161,17 @@ class ApiAgentAdapter(AgentAdapter):
             res = container.exec(["sh", "-c", f"ls -la {shlex.quote(path)}"], workdir=ws)
             return _clip(res.output)
         if name == "read_file":
-            res = container.exec(["cat", args["path"]], workdir=ws)
+            path = args.get("path")
+            if not path:
+                return "error: read_file requires a 'path' argument"
+            res = container.exec(["cat", path], workdir=ws)
             return _clip(res.output)
         if name == "write_file":
-            encoded = base64.b64encode(args["content"].encode("utf-8")).decode("ascii")
-            path = args["path"]
+            path = args.get("path")
+            content = args.get("content")
+            if not path or content is None:
+                return "error: write_file requires 'path' and 'content' arguments"
+            encoded = base64.b64encode(content.encode("utf-8")).decode("ascii")
             script = (
                 f'mkdir -p "$(dirname {shlex.quote(path)})" && '
                 f"printf %s {shlex.quote(encoded)} | base64 -d > {shlex.quote(path)}"
@@ -173,8 +179,11 @@ class ApiAgentAdapter(AgentAdapter):
             res = container.exec(["sh", "-c", script], workdir=ws)
             return "written" if res.ok else _clip(res.output)
         if name == "run":
+            command = args.get("command")
+            if not command:
+                return "error: run requires a 'command' argument"
             res = container.exec(
-                ["sh", "-c", args["command"]], workdir=ws, timeout_s=min(300, input.timeout_s)
+                ["sh", "-c", command], workdir=ws, timeout_s=min(300, input.timeout_s)
             )
             return _clip(f"exit={res.exit_code}\n{res.output}")
         return f"unknown tool: {name}"
