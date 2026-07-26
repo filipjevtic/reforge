@@ -8,6 +8,7 @@ it back to the node ids the task author listed in ``fail_to_pass`` /
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from xml.etree import ElementTree
 
@@ -105,22 +106,51 @@ def match_status(expected_id: str, results: list[TestCaseResult]) -> TestStatus 
 
     Frameworks report node ids inconsistently: pytest's JUnit output uses a
     dotted module classname with no ``.py`` (``test_calc::test_add``), while task
-    authors naturally write path-style ids (``test_calc.py::test_add``). We
-    normalize both to a dotted, extension-free form and compare exactly, then by
-    suffix (so a rootdir prefix on either side still matches).
+    authors naturally write path-style ids (``test_calc.py::test_add``). We split
+    both into segments and match when one is a trailing slice of the other, which
+    absorbs a rootdir/directory prefix drift on either side.
+
+    To avoid collisions we require at least two shared trailing segments (module +
+    test), so a bare ``test_add`` reported from an unrelated module can never be
+    credited to a more-qualified ``pkg.mod::test_add``.
     """
     by_id = {r.nodeid: r.status for r in results}
     if expected_id in by_id:
         return by_id[expected_id]
 
-    want = _normalize_id(expected_id)
-    for r in results:
-        have = _normalize_id(r.nodeid)
-        if want == have or have.endswith("." + want) or want.endswith("." + have):
-            return r.status
+    want = _segments(expected_id)
+    parsed = [(_segments(r.nodeid), r.status) for r in results]
+
+    # 1) exact segment match, and 2) qualified suffix match (both sides carry the
+    # module, sharing >= 2 trailing segments) absorb rootdir/dir prefix drift.
+    for have, status in parsed:
+        if have == want:
+            return status
+    for have, status in parsed:
+        n = min(len(want), len(have))
+        if n >= 2 and want[-n:] == have[-n:]:
+            return status
+
+    # 3) a deliberately-bare declared id (e.g. a go ``TestAdd``) matches on the
+    # function name, but only when exactly one test carries it, so it never
+    # silently credits the wrong module. A qualified id gets no such fallback.
+    if len(want) == 1:
+        tail = want[0]
+        hits = [status for have, status in parsed if have and have[-1] == tail]
+        if len(hits) == 1:
+            return hits[0]
     return None
 
 
-def _normalize_id(node_id: str) -> str:
-    """Collapse ``path/mod.py::Class::test`` and ``mod.Class.test`` to one form."""
-    return node_id.replace(".py", "").replace("::", ".").replace("/", ".").strip(".")
+_PY_EXT = re.compile(r"\.py(?=$|[:./])")
+
+
+def _segments(node_id: str) -> list[str]:
+    """Split ``path/mod.py::Class::test`` or ``mod.Class.test`` into segments.
+
+    The ``.py`` extension is stripped only where it is an extension (end of a path
+    segment), never mid-identifier, so a module like ``test_python`` is preserved.
+    """
+    stripped = _PY_EXT.sub("", node_id)
+    flat = stripped.replace("::", ".").replace("/", ".")
+    return [p for p in flat.split(".") if p]

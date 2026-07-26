@@ -199,19 +199,35 @@ def detect_package_manifests(files: dict[str, str]) -> set[str]:
     return found
 
 
+_GREP_TOKEN = re.compile(r"[A-Za-z0-9_.\-/]+")
+
+
 @register("grep")
 def detect_grep(files: dict[str, str]) -> set[str]:
-    """Fallback: the raw concatenated text, matched by substring later."""
-    return {"\n".join(files.values())}
+    """Fallback: word-boundary tokens across the files.
+
+    Returns discrete identifier-like tokens rather than the raw text, so a
+    required name is credited only when it appears as a whole token, never as a
+    substring buried in a comment or a longer identifier.
+    """
+    found: set[str] = set()
+    for content in files.values():
+        found.update(_GREP_TOKEN.findall(content))
+    return found
 
 
 def _matches(required: str, found: set[str]) -> bool:
+    """Covered if a detector found the exact item or a dotted parent/child of it.
+
+    Deliberately not a substring test: ``s3`` must not be credited by
+    ``aws_s3_bucket``, and a required name appearing only inside a longer token
+    must not count. Detectors needing loose text matching (grep) tokenize on word
+    boundaries first, so exact matching still applies to real identifiers.
+    """
     for token in found:
         if required == token:
             return True
         if token.startswith(required + ".") or required.startswith(token + "."):
-            return True
-        if required in token:
             return True
     return False
 

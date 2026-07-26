@@ -112,6 +112,33 @@ def test_scorer_reports_missed() -> None:
     assert result.score == round(2 / 3, 4)
 
 
+def test_substring_does_not_forge_coverage() -> None:
+    """A required 's3' must not be credited by an unrelated 'aws_s3_bucket' token."""
+    spec = _spec_with_deps(
+        RequiredDeps(services=["s3"]),
+        [Detector(type="grep", scope="**")],
+    )
+    container = FakeFsContainer({"main.tf": 'resource "aws_s3_bucket" "logs" {}\n'})
+    ctx = TaskScoringContext(spec=spec, container=container, diff="", workspace_path="/workspace")
+    result = DependencyScorer().score(ctx)
+    assert result.passed is False
+    assert result.detail["missed"] == ["s3"]
+
+
+def test_grep_matches_whole_token_not_comment_substring() -> None:
+    """grep credits a whole-token match but not a name buried in a longer word."""
+    spec = _spec_with_deps(
+        RequiredDeps(config_refs=["DATABASE_URL", "MISSING_VAR"]),
+        [Detector(type="grep", scope="**")],
+    )
+    container = FakeFsContainer(
+        {"env.sh": "export DATABASE_URL=postgres://x\n# MISSING_VARIANT is unrelated\n"}
+    )
+    ctx = TaskScoringContext(spec=spec, container=container, diff="", workspace_path="/workspace")
+    result = DependencyScorer().score(ctx)
+    assert result.detail["missed"] == ["MISSING_VAR"]
+
+
 def test_scorer_full_coverage() -> None:
     spec = _spec_with_deps(
         RequiredDeps(services=["postgres"]),
