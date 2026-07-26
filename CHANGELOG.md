@@ -6,6 +6,9 @@ All notable changes to reforge are recorded here. This project follows
 ## [Unreleased]
 
 ### Added
+- Flakiness gate: `verify-gold --repeats N` runs the gold solution N times and fails a
+  task whose resolution, score, or per-test status is not deterministic, catching flaky
+  tasks before they poison a leaderboard.
 - Resumable runs: `run --resume` reuses the same `--run-id` and skips tasks already
   scored, so a large run that dies partway (flaky container, rate limit, budget) can
   continue instead of starting over. Errored tasks are retried.

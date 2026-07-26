@@ -164,14 +164,19 @@ def validate(
 @app.command("verify-gold")
 def verify_gold(
     task_dir: Path = typer.Argument(..., help="Task directory to self-verify."),
+    repeats: int = typer.Option(
+        1, "--repeats", help="Run gold N times to catch flaky (non-deterministic) tests."
+    ),
 ) -> None:
     """Apply the gold solution and assert the task resolves. The self-consistency
-    check every task must pass."""
+    check every task must pass. With --repeats > 1 it also fails a task whose result
+    is not deterministic across runs."""
     from reforge.runner.run_context import make_run_context
     from reforge.runner.task_runner import run_task
     from reforge.runtime.docker_runtime import DockerRuntime
     from reforge.spec import load_task
 
+    n = max(1, repeats)
     try:
         spec = load_task(task_dir)
         runtime = DockerRuntime()
@@ -183,20 +188,49 @@ def verify_gold(
             adapter="gold",
             model=None,
         )
-        result = run_task(spec, ctx, runtime)
+        results = [run_task(spec, ctx, runtime, attempt=i) for i in range(n)]
     except ReforgeError as exc:
         _fail(str(exc))
         return
 
-    if result.error:
-        _fail(f"gold verification errored: {result.error}")
-    if result.resolved:
-        console.print(f"[green]✓ gold solution resolves[/green] {spec.id}")
-    else:
+    for r in results:
+        if r.error:
+            _fail(f"gold verification errored: {r.error}")
+
+    resolved = sum(1 for r in results if r.resolved)
+    where = f"See runs/{ctx.run_id}/tasks/{spec.id}/."
+
+    if resolved == 0:
+        _fail(f"gold solution did NOT resolve {spec.id} (score={results[0].final_score}). {where}")
+    if resolved < n:
         _fail(
-            f"gold solution did NOT resolve {spec.id} "
-            f"(score={result.final_score}). See runs/{ctx.run_id}/tasks/{spec.id}/."
+            f"gold solution is FLAKY for {spec.id}: resolved {resolved}/{n} runs. "
+            f"Flaky tests: {', '.join(_flaky_tests(results)) or '(unknown)'}. {where}"
         )
+
+    # All runs resolved; with repeats, also require deterministic tests and scores.
+    flaky = _flaky_tests(results)
+    if n > 1 and (flaky or len({r.final_score for r in results}) > 1):
+        _fail(
+            f"gold resolves but is FLAKY across {n} runs for {spec.id}: "
+            f"{', '.join(flaky) or 'score varies'}. {where}"
+        )
+
+    suffix = f" ({n} runs, deterministic)" if n > 1 else ""
+    console.print(f"[green]✓ gold solution resolves[/green] {spec.id}{suffix}")
+
+
+def _flaky_tests(results: list) -> list[str]:  # type: ignore[type-arg]
+    """Test ids whose pass/fail status differs across the repeated gold runs."""
+    statuses: dict[str, set[str]] = {}
+    for r in results:
+        tests = r.scores.get("tests")
+        if tests is None:
+            continue
+        for key in ("fail_to_pass", "pass_to_pass"):
+            for tid, status in (tests.detail.get(key) or {}).items():
+                statuses.setdefault(tid, set()).add(str(status))
+    return sorted(tid for tid, seen in statuses.items() if len(seen) > 1)
 
 
 @app.command()
