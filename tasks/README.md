@@ -18,6 +18,10 @@ Shipped tasks (a starter cookbook across domains):
   (cloud-infra; uses the `terraform_refs` detector).
 - `devops-k8s`: add a Kubernetes Service for a Deployment (devops; uses the
   `k8s_refs` detector).
+- `newfeature-js-slug`: add a slugify module that reuses lodash (app-feature; uses the
+  `js_imports` detector).
+- `newfeature-go-uuid`: add a UUID id generator that reuses google/uuid (app-feature;
+  uses the `go_imports` detector).
 
 Start your own with `reforge init <id> --category <domain>`.
 

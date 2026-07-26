@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import json
+
 from rich.console import Console
 
 from reforge.report.aggregate import build_leaderboard
 from reforge.report.models import RunReport, TaskResult
-from reforge.report.render import render_cost_quality, render_markdown, render_pass_at_k
+from reforge.report.render import (
+    LEADERBOARD_SCHEMA,
+    render_cost_quality,
+    render_leaderboard_json,
+    render_markdown,
+    render_pass_at_k,
+)
 
 
 def _r(task: str, model: str, resolved: bool, cost: float) -> TaskResult:
@@ -46,6 +54,14 @@ def test_cost_quality_and_markdown_render() -> None:
     md = render_markdown(report)
     assert "Cost vs quality" in md
     assert "dominated" in md
+
+
+def test_leaderboard_json_export() -> None:
+    report = _report([_r("a", "m", True, 0.0)])
+    payload = json.loads(render_leaderboard_json(report))
+    assert payload["schema"] == LEADERBOARD_SCHEMA
+    assert payload["rows"][0]["model"] == "m"
+    assert payload["rows"][0]["resolved_rate"] == 1.0
 
 
 def test_pass_at_k_render_smoke() -> None:

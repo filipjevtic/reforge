@@ -81,6 +81,88 @@ PYTHONPATH=/workspace pytest \\
   --junitxml="${REFORGE_REPORT:-/tmp/reforge_report}" -o junit_family=xunit2
 """
 
+_ADAPTER_PYPROJECT = """\
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reforge-adapter-{name}"
+version = "0.1.0"
+description = "A reforge agent adapter."
+requires-python = ">=3.11.4"
+dependencies = ["reforge-bench"]
+
+# This is what makes reforge discover the adapter after `pip install`.
+[project.entry-points."reforge.adapters"]
+{name} = "{module}:Adapter"
+"""
+
+_ADAPTER_MODULE = '''\
+"""A reforge agent adapter.
+
+An adapter drives one agent to modify files under ``input.workspace_path`` inside
+the task container. It never scores anything and never reports the diff; the harness
+captures the diff uniformly after ``run`` returns. See the reforge docs
+(docs/adapter-authoring.md) for the full contract.
+"""
+
+from __future__ import annotations
+
+from reforge.adapters.base import AdapterInput, AdapterResult, AgentAdapter
+from reforge.adapters.process import require_binary, run_cli
+from reforge.utils.errors import AdapterError
+
+
+class Adapter(AgentAdapter):
+    name = "REPLACE_ME"  # must match the entry-point key in pyproject.toml
+    version = "0.1.0"
+
+    def validate(self, input: AdapterInput) -> None:
+        """Fail fast before a run: check credentials, model support, or a binary."""
+        if not input.model:
+            raise AdapterError(f"{self.name} requires --model")
+        # Example: ensure your agent CLI is installed in the task image.
+        require_binary(input, "your-agent-cli")
+
+    def run(self, input: AdapterInput) -> AdapterResult:
+        """Drive the agent to edit files under input.workspace_path in the container.
+
+        The instruction is exposed as $REFORGE_INSTRUCTION so it is never
+        interpolated into the shell command directly.
+        """
+        env = dict(input.env)
+        env["REFORGE_INSTRUCTION"] = input.instruction
+        import dataclasses
+
+        merged = dataclasses.replace(input, env=env)
+        cmd = ["sh", "-c", 'your-agent-cli --prompt "$REFORGE_INSTRUCTION"']
+        return run_cli(merged, cmd, metadata={"model": input.model or ""})
+'''
+
+_ADAPTER_README = """\
+# reforge-adapter-{name}
+
+A third-party [reforge](https://github.com/filipjevtic/reforge) agent adapter.
+
+## Install
+
+```bash
+pip install -e .
+reforge list adapters   # {name} should appear
+```
+
+## Use
+
+```bash
+reforge run --task <task> --adapter {name} --model <model>
+```
+
+Implement `run()` in the package module to drive your agent, then rename
+`Adapter.name` to match the entry-point key. See `docs/adapter-authoring.md` in the
+reforge repo for the full contract.
+"""
+
 
 def _version_callback(value: bool) -> None:
     if value:
@@ -130,6 +212,31 @@ def init(
     console.print(f"[green]scaffolded[/green] {task_dir}")
     console.print("Next: add source under src/, write the verifier and gold/solution.patch, then")
     console.print(f"  reforge validate {task_dir} && reforge verify-gold {task_dir}")
+
+
+@app.command("new-adapter")
+def new_adapter(
+    name: str = typer.Argument(..., help="Adapter name (lowercase, dashes), e.g. my-agent."),
+    directory: Path = typer.Option(Path("."), "--dir", help="Where to create the package."),
+) -> None:
+    """Scaffold a pip-installable third-party adapter package.
+
+    reforge discovers adapters through the ``reforge.adapters`` entry-point group, so
+    anyone can ship one as its own package. This writes a minimal, working starting
+    point wired to that group."""
+    module = "reforge_adapter_" + name.replace("-", "_")
+    pkg_dir = directory / f"reforge-adapter-{name}"
+    if pkg_dir.exists():
+        _fail(f"{pkg_dir} already exists")
+    (pkg_dir / module).mkdir(parents=True)
+
+    (pkg_dir / "pyproject.toml").write_text(_ADAPTER_PYPROJECT.format(name=name, module=module))
+    (pkg_dir / module / "__init__.py").write_text(_ADAPTER_MODULE)
+    (pkg_dir / "README.md").write_text(_ADAPTER_README.format(name=name))
+
+    console.print(f"[green]scaffolded[/green] {pkg_dir}")
+    console.print("Next: implement run(), then")
+    console.print(f"  pip install -e {pkg_dir} && reforge list adapters")
 
 
 @app.command()
@@ -373,18 +480,30 @@ def report(
         None, "--compare", help="Other run dirs to combine into one leaderboard."
     ),
     fmt: str = typer.Option("table", "--format", help="Report format: table|markdown|json."),
+    leaderboard: bool = typer.Option(
+        False, "--leaderboard", help="Emit the shareable leaderboard-only JSON export."
+    ),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Write output to this file instead of stdout."
+    ),
 ) -> None:
     """Render a run report, or compare several runs on one leaderboard."""
     from reforge.report.aggregate import build_leaderboard, build_task_stats
     from reforge.report.models import RunReport
-    from reforge.report.render import render_comparison, render_json, render_markdown, render_table
+    from reforge.report.render import (
+        render_comparison,
+        render_json,
+        render_leaderboard_json,
+        render_markdown,
+        render_table,
+    )
 
     parsed = _load_report(run_dir)
 
     if compare:
         reports = [parsed, *(_load_report(d) for d in compare)]
         combined = [r for rep in reports for r in rep.results]
-        merged = RunReport(
+        effective = RunReport(
             run_id="+".join(r.run_id for r in reports),
             tool_version=parsed.tool_version,
             dataset=parsed.dataset,
@@ -394,22 +513,36 @@ def report(
             leaderboard=build_leaderboard(combined),
             task_stats=build_task_stats(combined),
         )
-        if fmt == "json":
-            console.print_json(render_json(merged))
-        else:
-            render_comparison(merged, console)
-        return
-
-    # Re-aggregate from the stored results so confidence intervals and pass@k are
-    # present even for a report.json produced before those fields existed.
-    parsed.leaderboard = build_leaderboard(parsed.results)
-    parsed.task_stats = build_task_stats(parsed.results)
-    if fmt == "json":
-        console.print_json(render_json(parsed))
-    elif fmt == "markdown":
-        console.print(render_markdown(parsed))
     else:
-        render_table(parsed, console)
+        # Re-aggregate from the stored results so confidence intervals and pass@k are
+        # present even for a report.json produced before those fields existed.
+        effective = parsed
+        effective.leaderboard = build_leaderboard(parsed.results)
+        effective.task_stats = build_task_stats(parsed.results)
+
+    if leaderboard:
+        _emit(render_leaderboard_json(effective), output, "leaderboard")
+        return
+    if fmt == "json":
+        _emit(render_json(effective), output, "report")
+        return
+    if compare:
+        render_comparison(effective, console)
+    elif fmt == "markdown":
+        _emit(render_markdown(effective), output, "report")
+    else:
+        render_table(effective, console)
+
+
+def _emit(text: str, output: Path | None, what: str) -> None:
+    """Write JSON/markdown to a file, or pretty-print it to the console."""
+    if output is not None:
+        output.write_text(text + "\n", encoding="utf-8")
+        console.print(f"wrote {what} to {output}")
+    elif text.lstrip().startswith(("{", "[")):
+        console.print_json(text)
+    else:
+        console.print(text)
 
 
 def _load_report(run_dir: Path):  # type: ignore[no-untyped-def]

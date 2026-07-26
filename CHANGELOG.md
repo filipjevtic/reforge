@@ -6,6 +6,12 @@ All notable changes to reforge are recorded here. This project follows
 ## [Unreleased]
 
 ### Added
+- `reforge new-adapter <name>` scaffolds a pip-installable third-party adapter package
+  wired to the `reforge.adapters` entry-point group.
+- Shareable leaderboard export: `report --leaderboard` (with `--output`) writes a stable
+  `reforge-leaderboard/v1` JSON of the leaderboard rows.
+- Two more cookbook samples exercising the JS and Go detectors end to end:
+  `newfeature-js-slug` (js_imports) and `newfeature-go-uuid` (go_imports).
 - Flakiness gate: `verify-gold --repeats N` runs the gold solution N times and fails a
   task whose resolution, score, or per-test status is not deterministic, catching flaky
   tasks before they poison a leaderboard.

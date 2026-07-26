@@ -1,0 +1,13 @@
+diff --git a/slugify.js b/slugify.js
+new file mode 100644
+index 0000000..e164e15
+--- /dev/null
++++ b/slugify.js
+@@ -0,0 +1,7 @@
++const _ = require('lodash');
++
++function slugify(name) {
++  return _.kebabCase(name);
++}
++
++module.exports = { slugify };

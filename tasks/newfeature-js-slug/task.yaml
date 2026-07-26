@@ -1,0 +1,54 @@
+schema_version: 1
+id: newfeature-js-slug
+category: app-feature
+tags: [javascript]
+title: "Add a slugify utility that reuses lodash"
+description: >
+  A JavaScript new-feature task. The repo has an entry module; the agent must add a
+  slugify.js module that turns a name into a URL slug by reusing lodash's kebabCase
+  rather than hand-rolling it. Scoring parses the produced file, and the
+  dependency-coverage scorer (js_imports) confirms lodash was actually wired up.
+
+instruction: |
+  Create slugify.js next to index.js. It must export a function slugify(name) that
+  returns a URL-friendly slug of the name. Reuse lodash's kebabCase (require the
+  'lodash' package); do not hand-roll the transformation. Export it via
+  module.exports so other modules can use it.
+
+source:
+  type: local
+  path: src
+  strip_git: true
+
+environment:
+  dockerfile: Dockerfile
+  workdir: /workspace
+
+verification:
+  entrypoint: verifier/run_tests.sh
+  framework: pytest
+  fail_to_pass:
+    - "test_slugify.py::test_slugify_module"
+  pass_to_pass: []
+  timeout_s: 120
+
+dependency_coverage:
+  required:
+    imports:
+      - lodash
+  detectors:
+    - type: js_imports
+      scope: "*.js"
+
+scoring:
+  weights:
+    tests: 0.7
+    dependency_coverage: 0.3
+  gate:
+    require_pass_to_pass: true
+
+resources:
+  cpus: 1
+  memory: "1g"
+  network: none
+  agent_timeout_s: 300
