@@ -1,0 +1,55 @@
+schema_version: 1
+id: cloud-infra-terraform
+category: cloud-infra
+tags: [terraform, aws]
+title: "Add an S3 bucket resource to the Terraform config"
+description: >
+  A cloud-infra task. The module defines an environment variable and a computed
+  bucket name; the agent must add the S3 bucket resource that uses them. Scoring
+  checks the produced Terraform, and the dependency-coverage scorer confirms the
+  expected resource was wired up.
+
+source:
+  type: local
+  path: src
+  strip_git: true
+
+environment:
+  dockerfile: Dockerfile
+  workdir: /workspace
+
+instruction: |
+  main.tf declares a variable `environment` and a local `bucket_name`. Add a file
+  `s3.tf` defining an `aws_s3_bucket` resource named `app_data` whose `bucket` is
+  `local.bucket_name`, tagged with `Environment = var.environment`. Do not add a
+  provider block or change main.tf.
+
+verification:
+  entrypoint: verifier/run_tests.sh
+  framework: pytest
+  fail_to_pass:
+    - "test_s3.py::test_bucket_defined"
+    - "test_s3.py::test_bucket_uses_local_name"
+  pass_to_pass: []
+  timeout_s: 180
+
+dependency_coverage:
+  required:
+    services:
+      - aws_s3_bucket
+      - app_data
+  detectors:
+    - type: terraform_refs
+      scope: "*.tf"
+
+scoring:
+  weights:
+    tests: 0.6
+    dependency_coverage: 0.4
+  gate:
+    require_pass_to_pass: true
+
+resources:
+  cpus: 1
+  memory: "1g"
+  network: none

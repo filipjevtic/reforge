@@ -1,0 +1,53 @@
+schema_version: 1
+id: devops-k8s
+category: devops
+tags: [kubernetes, manifests]
+title: "Add a Kubernetes Service for the web Deployment"
+description: >
+  A devops task. The repo has a Deployment for the web app; the agent must add a
+  Service that exposes it. Scoring parses the produced manifest, and the
+  dependency-coverage scorer confirms the Service and its target were wired up.
+
+source:
+  type: local
+  path: src
+  strip_git: true
+
+environment:
+  dockerfile: Dockerfile
+  workdir: /workspace
+
+instruction: |
+  deployment.yaml defines a Deployment named `web` with pods labelled `app: web`
+  exposing containerPort 8080. Add `service.yaml` defining a Service that selects
+  `app: web` and forwards to targetPort 8080. Do not modify deployment.yaml.
+
+verification:
+  entrypoint: verifier/run_tests.sh
+  framework: pytest
+  fail_to_pass:
+    - "test_service.py::test_service_kind_and_selector"
+    - "test_service.py::test_service_targets_container_port"
+  pass_to_pass: []
+  timeout_s: 180
+
+dependency_coverage:
+  required:
+    services:
+      - Service
+      - web
+  detectors:
+    - type: k8s_refs
+      scope: "service.yaml"
+
+scoring:
+  weights:
+    tests: 0.6
+    dependency_coverage: 0.4
+  gate:
+    require_pass_to_pass: true
+
+resources:
+  cpus: 1
+  memory: "1g"
+  network: none

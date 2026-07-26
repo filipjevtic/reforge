@@ -150,7 +150,9 @@ my-task/
 └── (your source, or a git ref in task.yaml)
 ```
 
-`tests/fixtures/tiny-task` is a complete, minimal example. See
+`reforge init <id> --category <domain>` scaffolds this layout for you.
+`tests/fixtures/tiny-task` is a complete, minimal example, and `tasks/` holds a
+starter cookbook (analytics, staging env, Terraform, Kubernetes). See
 [docs/task-authoring.md](docs/task-authoring.md) for the full schema.
 
 ## Bringing your own agent

@@ -14,6 +14,8 @@ All notable changes to reforge are recorded here. This project follows
   code for CI adoption gating. `reforge list scorers`.
 - Credentialed tasks: `run --env-passthrough KEY` forwards a host env var into a
   task only if the task allowlists it in `environment.allowed_env`.
+- `reforge init` task scaffolder, and two cookbook samples:
+  `cloud-infra-terraform` and `devops-k8s`.
 
 ## [0.1.1] - 2026-07-24
 
