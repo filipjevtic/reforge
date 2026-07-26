@@ -99,6 +99,23 @@ def test_api_agent_tool_loop_resolves_in_container(runtime, tmp_path, monkeypatc
     assert result.tokens.total == 155
 
 
+def test_env_reaches_container_exec(runtime) -> None:
+    """Env forwarded to run_container is visible to exec'd commands (creds path)."""
+    from reforge.runtime.limits import ResourceLimits
+
+    container = runtime.run_container(
+        image="python:3.12-slim",
+        workdir="/",
+        limits=ResourceLimits(cpus=1, memory="512m", pids=128, network="none"),
+        env={"REFORGE_TEST_ENV": "sekret"},
+    )
+    try:
+        result = container.exec(["printenv", "REFORGE_TEST_ENV"])
+        assert result.output.strip() == "sekret"
+    finally:
+        container.stop()
+
+
 ANALYTICS_TASK = Path(__file__).parent.parent.parent / "tasks" / "newfeature-analytics"
 
 

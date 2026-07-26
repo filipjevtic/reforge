@@ -129,6 +129,11 @@ The `resources` block bounds each task container: `cpus`, `memory`, `pids`,
 with pquota, or btrfs); on drivers that don't, reforge logs a warning and runs
 without the quota rather than failing.
 
+For tasks that need real credentials, list the host env var names under
+`environment.allowed_env` (values never go in task.yaml). They reach the container
+only when the run also passes `--env-passthrough KEY`. See
+[SECURITY.md](../SECURITY.md).
+
 ## Validate before you run
 
 ```bash

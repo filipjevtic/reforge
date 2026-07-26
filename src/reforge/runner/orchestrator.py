@@ -36,6 +36,7 @@ def run_dataset(
     progress: bool = False,
     repeats: int = 1,
     max_cost_usd: float | None = None,
+    requested_env: dict[str, str] | None = None,
 ) -> RunReport:
     _write_run_json(ctx, dataset_name, specs)
 
@@ -62,6 +63,7 @@ def run_dataset(
                 no_cache=no_cache,
                 adapter_config=adapter_config,
                 judge_limiter=judge_limiter,
+                requested_env=requested_env,
                 attempt=attempt,
             )
         except Exception as exc:  # run_task shouldn't raise, but never let it abort the run
