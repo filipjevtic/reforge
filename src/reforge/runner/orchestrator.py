@@ -18,6 +18,7 @@ from reforge.runner.run_context import RunContext
 from reforge.runner.task_runner import run_task
 from reforge.runtime.base import ContainerRuntime
 from reforge.spec.models import TaskSpec
+from reforge.utils.errors import redact_secrets
 from reforge.utils.logging import get_logger
 
 log = get_logger("runner.orchestrator")
@@ -67,14 +68,15 @@ def run_dataset(
                 attempt=attempt,
             )
         except Exception as exc:  # run_task shouldn't raise, but never let it abort the run
-            log.error("task_crashed", task=spec.id, error=str(exc))
+            message = redact_secrets(f"unexpected: {exc}")
+            log.error("task_crashed", task=spec.id, error=message)
             return TaskResult(
                 task_id=spec.id,
                 category=spec.category,
                 tags=list(spec.tags),
                 adapter=ctx.adapter,
                 model=ctx.model,
-                error=f"unexpected: {exc}",
+                error=message,
             )
 
     spent = 0.0

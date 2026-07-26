@@ -19,6 +19,7 @@ def test_docker_kwargs_hardening() -> None:
     assert kwargs["network_mode"] == "none"
     assert kwargs["cap_drop"] == ["ALL"]
     assert "no-new-privileges" in kwargs["security_opt"]
+    assert any(u["Name"] == "nofile" for u in kwargs["ulimits"])
     assert "storage_opt" not in kwargs  # none by default
 
 

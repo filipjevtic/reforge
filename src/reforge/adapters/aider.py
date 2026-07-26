@@ -35,9 +35,12 @@ class AiderAdapter(AgentAdapter):
                 env[key] = os.environ[key]
         env["REFORGE_INSTRUCTION"] = input.instruction
 
+        # Values expand from the environment so instruction/model are never
+        # interpolated into the command string directly.
         shell_cmd = 'aider --yes --no-auto-commits --message "$REFORGE_INSTRUCTION"'
         if input.model:
-            shell_cmd += f" --model {input.model}"
+            env["REFORGE_MODEL"] = input.model
+            shell_cmd += ' --model "$REFORGE_MODEL"'
 
         merged = dataclasses.replace(input, env=env)
         return run_cli(merged, ["sh", "-c", shell_cmd], metadata={"model": input.model or ""})
