@@ -6,6 +6,9 @@ All notable changes to reforge are recorded here. This project follows
 ## [Unreleased]
 
 ### Added
+- Resumable runs: `run --resume` reuses the same `--run-id` and skips tasks already
+  scored, so a large run that dies partway (flaky container, rate limit, budget) can
+  continue instead of starting over. Errored tasks are retried.
 - Decision-grade reporting: `resolved_rate` now carries a Wilson 95% confidence
   interval, `pass@k` is reported when `--repeats > 1`, `report --compare` prints a
   cost/quality Pareto table (mean $/task, dominated vs on-frontier) and a

@@ -220,6 +220,9 @@ def run(
     judge_model: str | None = typer.Option(None, "--judge-model", help="Model id for the judge."),
     judge_samples: int = typer.Option(1, "--judge-samples", help="Judge samples; median is taken."),
     repeats: int = typer.Option(1, "--repeats", help="Run each task N times for variance."),
+    resume: bool = typer.Option(
+        False, "--resume", help="Reuse the same --run-id and skip tasks already scored."
+    ),
     max_cost_usd: float | None = typer.Option(
         None, "--max-cost-usd", help="Stop launching tasks once spend reaches this budget."
     ),
@@ -305,6 +308,7 @@ def run(
             repeats=repeats,
             max_cost_usd=max_cost_usd,
             requested_env=requested_env,
+            resume=resume,
         )
     except ReforgeError as exc:
         _fail(str(exc))
